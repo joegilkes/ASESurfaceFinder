@@ -1,0 +1,27 @@
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "asesurfacefinder"
+version = "1.0.0"
+description = "Machine learned location of chemical adsorbates on high-symmetry surface sites."
+readme = "README.md"
+authors = [{ name = "Joe Gilkes", email = "j.gilkes@warwick.ac.uk" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["ase", "surface", "atoms", "molecule", "chemistry", "adsorbate", "location"]
+dependencies = [
+    "numpy",
+    "scikit-learn",
+    "dscribe",
+    "ase"
+]
+requires-python = ">=3.10"
+
+[project.urls]
+Homepage = "https://github.com/joegilkes/ASESurfaceFinder"
