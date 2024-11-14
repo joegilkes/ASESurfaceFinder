@@ -216,7 +216,7 @@ class SurfaceFinder:
                 stat_labels.append(f'{labels[i]} {smults[i]} (h = {heights[i]:.2f}, d = {displacements[i]:.2f})')
 
             stat_clen = np.max([len(lab) for lab in stat_labels])
-            print(f'True {' '*(stat_clen-5)} | Predicted')
+            print(f'True {" "*(stat_clen-5)} | Predicted')
             print('-'*(stat_clen+18))
             for i, idx in enumerate(incorrect_idxs):
                 print(f'{stat_labels[i].ljust(stat_clen)} | {pred_labels[idx]}')
