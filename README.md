@@ -16,9 +16,9 @@ Given a workflow that produces XYZ geometries of molecules adsorbed on periodic 
 
 | Example Surface | ASE Construction | Visualisation (3x3x3) |
 |-----------------|------------------|-----------------------|
-| Platinum FCC{100} | `fcc100('Pt', (3,3,3))` | ![3x3x3 unit cell of FCC{100} platinum](/examples/Pt_fcc100.png) |
-| Silver FCC{110} | `fcc110('Ag', (3,3,3))` | ![3x3x3 unit cell of FCC{110} silver](/examples/Ag_fcc110.png) |
-| Gold FCC{111} | `fcc111('Au', (3,3,3))` | ![3x3x3 unit cell of FCC{111} gold](/examples/Au_fcc111.png) |
+| Platinum FCC{100} | `fcc100('Pt', (3,3,3))` | ![3x3x3 unit cell of FCC{100} platinum](/examples/Pt_fcc100.svg) |
+| Silver FCC{110} | `fcc110('Ag', (3,3,3))` | ![3x3x3 unit cell of FCC{110} silver](/examples/Ag_fcc110.svg) |
+| Gold FCC{111} | `fcc111('Au', (3,3,3))` | ![3x3x3 unit cell of FCC{111} gold](/examples/Au_fcc111.svg) |
 
 ASE defines the symmetrically equivalent absorption sites for each of these surface facets (see [ASE's documentation on surface construction](https://wiki.fysik.dtu.dk/ase/ase/build/surface.html)). These are used as classification targets within ASESurfaceFinder.
 
