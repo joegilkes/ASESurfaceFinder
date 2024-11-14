@@ -49,7 +49,7 @@ def sample_ads_pos(xy_pos: ArrayLike, z_bounds: tuple[float, float], xy_noise: f
 
 
 def get_absolute_abspos(slab: Atoms, site: str):
-    '''Determine the absolute position of a high-symmetry absorption site in a given unit cell.'''
+    '''Determine the absolute position of a high-symmetry adsorption site in a given unit cell.'''
     spos = slab.info['adsorbate_info']['sites'][site]
     cell = slab.info['adsorbate_info']['cell']
     pos = np.dot(spos, cell)

@@ -42,7 +42,18 @@ class SamplePlotter:
         return
     
     def plot(self, ax=None, **kwargs):
-        ''''''
+        '''Plot the sampled adsorbate positions on a surface.
+        
+        Wraps `ase.visualize.plot.plot_atoms` to replace the sizes and
+        colours of adsorbate atoms with points unique to each site.
+        Generates a figure legend for sites.
+
+        Returns the passed/generated matplotlib axes.
+
+        Arguments:
+            ax: Optional matplotlib axes to plot on, creates one if not provided.
+            **kwargs: Keyword arguments to pass to `plot_atoms`.
+        '''
         ax = plot_atoms(self.surface, ax=ax, radii=self.radii, **kwargs)
         n_sites = len(self.sites)
         for patch in ax.patches:

@@ -21,19 +21,19 @@ class SurfaceFinder:
         '''Predicts location of adsorbates on surfaces.
         
         Given a list of ASE surfaces with correctly initialised
-        high-symmetry adsorbtion points, trains a random forest
+        high-symmetry adsorption points, trains a random forest
         classification model to predict the high-symmetry point
         that adsorbates are bound to.
 
-        Evaluates its own performance on generated surface-adsorbate
-        examples as a part of the training procedure.
+        Can evaluate its own performance on generated surface/adsorbate
+        examples in a secondary validation step.
 
         If greater control over the hyperparameters of
         `sklearn.ensemble.RandomForestClassifier` is desired, a
         previously setup instance of the class can be passed.
 
         Arguments:
-            surfaces: List of ASE `Atoms` objects representing surfaces with correctly maped high-symmetry adsorbtion points.
+            surfaces: List of ASE `Atoms` objects representing surfaces with correctly maped high-symmetry adsorption points.
             labels: Optional list of names for surfaces, must be of equal length to `surfaces` if provided.
             clf: Optional `RandomForestClassifier` instance.
             descriptor: Optional local descriptor type, must be one of ['SOAP', 'LMBTR'] or an instantiated generator fron DScribe.
@@ -83,7 +83,7 @@ class SurfaceFinder:
               samples_per_site: int=500,
               surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1)],
               ads_z_bounds: tuple[float, float]=(1.2, 2.75),
-              ads_xy_noise: float=5e-2,
+              ads_xy_noise: float=1e-2,
               n_jobs: int=1
         ):
         '''Trains a random forest classifier to recognise surface sites.
@@ -95,14 +95,14 @@ class SurfaceFinder:
             ads_xy_noise: XY-plane noise to add to sampled adsorbate position during training.
             n_jobs: Number of processes to parallelise descriptor generation and training over.
         '''
+        print('ASESurfaceFinder Training')
+        print('------------------------------------')
+
         n_mults = len(surf_mults)
         n_samples = sum([n_mults*len(sites)*samples_per_site for sites in self.surface_sites])
 
-        print('ASESurfaceFinder Training')
-        print('------------------------------------')
-        print('  Constructing LMBTR descriptors for sampled systems...')
-
-        surf_mbtrs = np.zeros((n_samples, self.desc.get_number_of_features()))
+        print('  Constructing local descriptors for sampled systems...')
+        surf_descs = np.zeros((n_samples, self.desc.get_number_of_features()))
         labels = []
         start_idx = 0
         for i, (surface, sites, label) in enumerate(zip(self.surfaces, self.surface_sites, self.labels)):
@@ -121,13 +121,13 @@ class SurfaceFinder:
 
                 end_idx = start_idx + (len(sites)*samples_per_site)
                 slab = surface.copy()
-                print(f'  Adding {len(slab_positions)} MBTRs between idxs {start_idx} and {end_idx} ')
-                surf_mbtrs[start_idx:end_idx, :] = self.desc.create(slab, centers=slab_positions, n_jobs=n_jobs)
+                print(f'  Adding {len(slab_positions)} descs between idxs {start_idx} and {end_idx} ')
+                surf_descs[start_idx:end_idx, :] = self.desc.create(slab, centers=slab_positions, n_jobs=n_jobs)
 
                 start_idx = end_idx
 
         print('  Training random forest classifier...')
-        X, y = shuffle(surf_mbtrs, labels)
+        X, y = shuffle(surf_descs, labels)
         if self.clf_preconfig is None:
             clf = RandomForestClassifier(n_jobs=n_jobs)
         else:
@@ -143,7 +143,7 @@ class SurfaceFinder:
     def validate(self,
                  samples_per_site: int=500,
                  surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1), (2,2,1)],
-                 ads_z_bounds: tuple[float, float]=(1.2, 2.2),
+                 ads_z_bounds: tuple[float, float]=(1.3, 2.7),
                  ads_xy_noise: float=1e-2
         ):
         '''Validates a random forest classifier's ability to recognise surface sites.
@@ -154,17 +154,16 @@ class SurfaceFinder:
             ads_z_bounds: Tuple of minimum and maximum heights to validate for adsorbates binding to surface sites.
             ads_xy_noise: XY-plane noise to add to sampled adsorbate position during validation.
         '''
+        print('ASESurfaceFinder Validation')
+        print('------------------------------------')
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
         
         n_mults = len(surf_mults)
         n_samples = sum([n_mults*len(sites)*samples_per_site for sites in self.surface_sites])
 
-        print('ASESurfaceFinder Validation')
-        print('------------------------------------')
-        print('  Constructing LMBTR descriptors for sampled systems...')
-
-        surf_mbtrs = np.zeros((n_samples, self.desc.get_number_of_features()))
+        print('  Constructing local descriptors for sampled systems...')
+        surf_descs = np.zeros((n_samples, self.desc.get_number_of_features()))
         labels = []
         smults = []
         heights = []
@@ -189,16 +188,16 @@ class SurfaceFinder:
 
                 end_idx = start_idx + (len(sites)*samples_per_site)
                 slab = surface.copy()
-                print(f'  Adding {len(slab_positions)} MBTRs between idxs {start_idx} and {end_idx} ')
-                surf_mbtrs[start_idx:end_idx, :] = self.desc.create(slab, centers=slab_positions, n_jobs=self.clf.n_jobs)
+                print(f'  Adding {len(slab_positions)} descs between idxs {start_idx} and {end_idx} ')
+                surf_descs[start_idx:end_idx, :] = self.desc.create(slab, centers=slab_positions, n_jobs=self.clf.n_jobs)
 
                 start_idx = end_idx
 
         assert(len(labels) == n_samples)
 
         print('  Predicting labels with random forest classifier...')
-        pred_labels = self.clf.predict(surf_mbtrs)
-        score = self.clf.score(surf_mbtrs, labels)
+        pred_labels = self.clf.predict(surf_descs)
+        score = self.clf.score(surf_descs, labels)
         print('  Prediction complete.\n')
 
         correct_acc = 0
@@ -209,7 +208,7 @@ class SurfaceFinder:
             else:
                 incorrect_idxs.append(i)
         
-        print(f'{correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
+        print(f'  {correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
 
         if len(incorrect_idxs) > 0:
             stat_labels = []
@@ -222,13 +221,13 @@ class SurfaceFinder:
             for i, idx in enumerate(incorrect_idxs):
                 print(f'{stat_labels[i].ljust(stat_clen)} | {pred_labels[idx]}')
 
-            print(f'\n{correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
+            print(f'\n  {correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
 
         return 
 
 
     def predict(self, ads_slab: Atoms, allow_tag_guessing: bool=True):
-        '''Predicts absorption site and surface facet of adsorbed systems.
+        '''Predicts adsorption site and surface facet of adsorbed systems.
 
         Systems may contain multiple adsorbates, as well as non-
         adsorbed, gas-phase molecules. This method separates all
@@ -244,7 +243,7 @@ class SurfaceFinder:
         molecule geometries, and a matching list of adsorption
         site dicts. Each dict (one per molecule) is keyed by
         the indices of adsorbed atoms, with dict values representing
-        predicted absorption site and coordination to the surface
+        predicted adsorption site and coordination to the surface
         at this site. In the event that a molecule was not
         bound to the surface, its dict remains empty.
 
@@ -253,6 +252,8 @@ class SurfaceFinder:
             ads_slab: `Atoms` object representing adsorbate(s) on surface slab.
             allow_tag_guessing: Whether to allow surface/adsorbate layer tags to be guessed based on elemental composition if not present or otherwise malformed in input.
         '''
+        print('ASESurfaceFinder Prediction')
+        print('------------------------------------')
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
 
@@ -287,7 +288,7 @@ class SurfaceFinder:
                     bonded_molatom_slabidxs.append(molatom_slabidx)
 
         bonded_molatom_slabidxs, bonded_molatom_coordinations = np.unique(bonded_molatom_slabidxs, return_counts=True)
-        print(f'{len(bonded_molatom_slabidxs)} adsorbed atoms found on surface at idxs {bonded_molatom_slabidxs}.')
+        print(f'  {len(bonded_molatom_slabidxs)} adsorbed atoms found on surface at idxs {bonded_molatom_slabidxs}.')
 
         # Isolate molecules.
         mol_atoms = ads_slab[molatom_slabidxs]
@@ -297,15 +298,15 @@ class SurfaceFinder:
         nl = ana.nl[0]
         cm = nl.get_connectivity_matrix()
         n_mol, molidx_to_moleculeidx = sparse.csgraph.connected_components(cm) # e.g. 2, array[0, 0, 0, 1, 1]
-        print(f'{n_mol} molecule(s) found on/above surface.')
+        print(f'  {n_mol} molecule(s) found on/above surface.')
         molecules = [mol_atoms[np.argwhere(molidx_to_moleculeidx==i).flatten()] for i in range(n_mol)]
 
         # Predict surface sites.
         pos = ads_slab.get_positions()
         slab = ads_slab[slabatom_slabidxs]
         bonded_positions = pos[bonded_molatom_slabidxs]
-        mbtrs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
-        pred_labels = self.clf.predict(mbtrs)
+        descs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
+        pred_labels = self.clf.predict(descs)
 
         # Assign surface sites to molecules.
         slabidx_to_molidx = {int(idx): i for i, idx in enumerate(molatom_slabidxs)}

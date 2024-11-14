@@ -1,10 +1,10 @@
 # ASESurfaceFinder
 
-A utility for determining surface facets and absorption points of ASE-based systems consisting of molecules on surfaces.
+A utility for determining surface facets and adsorption points of ASE-based systems consisting of molecules on surfaces.
 
-[ASE](https://wiki.fysik.dtu.dk/ase/) comes with an excellent selection of utilities for working with atomic surfaces, enabling the construction of many common surface facets, the definition of symmetrically equivalent points across these surfaces, and the adsorption of arbitrary molecules to these surface sites. However, determining which of these sites an absorbed molecule is bound to without prior knowledge is a non-trivial task for computers.
+[ASE](https://wiki.fysik.dtu.dk/ase/) comes with an excellent selection of utilities for working with atomic surfaces, enabling the construction of many common surface facets, the definition of symmetrically equivalent points across these surfaces, and the adsorption of arbitrary molecules to these surface sites. However, determining which of these sites an adsorbed molecule is bound to without prior knowledge is a non-trivial task for computers.
 
-ASESurfaceFinder implements automated tools for training and validating random forest classification models (implemented in [scikit-learn](https://scikit-learn.org/stable/index.html)) that can identify surface sites based on the local atomic environment of adsorbed atoms. Given unseen adsorbed systems, it then enables these models to be used for prediction of both surface facet and high-symmetry absorption site, to be used when cataloguing externally-generated adsorbed systems.
+ASESurfaceFinder implements automated tools for training and validating random forest classification models (implemented in [scikit-learn](https://scikit-learn.org/stable/index.html)) that can identify surface sites based on the local atomic environment of adsorbed atoms. Given unseen adsorbed systems, it then enables these models to be used for prediction of both surface facet and high-symmetry adsorption site, to be used when cataloguing externally-generated adsorbed systems.
 
 ## Installation
 
@@ -20,7 +20,7 @@ Given a workflow that produces XYZ geometries of molecules adsorbed on periodic 
 | Silver FCC{110} | `fcc110('Ag', (3,3,3))` | ![3x3x3 unit cell of FCC{110} silver](/examples/Ag_fcc110.svg) |
 | Gold FCC{111} | `fcc111('Au', (3,3,3))` | ![3x3x3 unit cell of FCC{111} gold](/examples/Au_fcc111.svg) |
 
-ASE defines the symmetrically equivalent absorption sites for each of these surface facets (see [ASE's documentation on surface construction](https://wiki.fysik.dtu.dk/ase/ase/build/surface.html)). These are used as classification targets within ASESurfaceFinder.
+ASE defines the symmetrically equivalent adsorption sites for each of these surface facets (see [ASE's documentation on surface construction](https://wiki.fysik.dtu.dk/ase/ase/build/surface.html)). These are used as classification targets within ASESurfaceFinder.
 
 To begin, the package's main class is initialised using these surfaces:
 
@@ -56,7 +56,7 @@ For each surface facet passed into `SurfaceFinder`, this samples positions above
 
 The local atomic environment around each sampled adsorbate position is then encoded by means of a descriptor from [DScribe](https://singroup.github.io/dscribe/latest/) - a SOAP descriptor with a cutoff of 10 Å is used by default, but this can be modified by passing a `descriptor` keyword argument when constructing the `SurfaceFinder`. Each descriptor is matched with a label representing the surface facet and adsorption site that it represents in the format `{label}_{site}`, where `{label}` is one of the labels passed into `SurfaceFinder` and `{site}` is the ASE high-symmetry site name. The `n_jobs` argument enables parallelism over the specified number of processes during descriptor creation and model training.
 
-A random forest classifier is then trained on this data, such that any future points above a surface can be classified into a surface facet and absorption site prediction. 
+A random forest classifier is then trained on this data, such that any future points above a surface can be classified into a surface facet and adsorption site prediction. 
 
 ### Sample Visualisation
 
@@ -77,7 +77,7 @@ sp.plot(ax=ax2, rotation='-75x,15y,0z')
 
 This acts as a wrapper around `ase.visualize.plot`'s `plot_atoms` function, sampling adsorption points within the given bounds and displaying them on the requested surface. `SamplePlotter.plot()` passes through keyword arguments to this function, allowing for properties such as the rotation of each plot to be modified:
 
-![Absorption points sampled above high-symmetry sites on a gold FCC{111} surface](/examples/sampled_points.svg)
+![Adsorption points sampled above high-symmetry sites on a gold FCC{111} surface](/examples/sampled_points.svg)
 
 In this case, the sampled XY position noise may need to be decreased slightly, as the areas covered by the bridge and fcc sites have begun to overlap, which may reduce predictive accuracy.
 
@@ -104,7 +104,7 @@ ASESurfaceFinder will output a summary of these validation results once it has p
 66000/66000 sites classified correctly (accuracy = 1.0).
 ```
 
-However, if this validation fails for any sites, ASESurfaceFinder prints them in a table where `h` is the sampled adsorbate height and `d` is the distance in Angstroms away from the ideal absorption site:
+However, if this validation fails for any sites, ASESurfaceFinder prints them in a table where `h` is the sampled adsorbate height and `d` is the distance in Angstroms away from the ideal adsorption site:
 
 ```
 63559/66000 sites classified correctly (accuracy = 0.9630151515151515).
@@ -129,7 +129,7 @@ In this case, we showed above that it is likely that all of these problems are a
 
 ### Model Prediction
 
-To predict the high-symmetry absorption sites and surface facets of real surface/adsorbate systems, these can simply be fed into a trained `SurfaceFinder`.
+To predict the high-symmetry adsorption sites and surface facets of real surface/adsorbate systems, these can simply be fed into a trained `SurfaceFinder`.
 
 Taking an example system of 3 methanol molecules adsorbed to 'fcc' sites of gold FCC{111}, with a free methanol molecule above the surface:
 
