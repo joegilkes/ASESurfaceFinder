@@ -8,7 +8,15 @@ ASESurfaceFinder implements automated tools for training and validating random f
 
 ## Installation
 
-TBC
+ASESurfaceFinder has been developed for Python 3.10 and newer. It is available on PyPI and conda-forge, using their respective package managers:
+
+```bash
+# Pip (PyPI)
+pip install asesurfacefinder
+
+# Conda (conda-forge)
+conda install -c conda-forge asesurfacefinder
+```
 
 ## Usage
 
