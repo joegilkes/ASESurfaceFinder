@@ -2,7 +2,7 @@
 
 A utility for determining surface facets and adsorption points of ASE-based systems consisting of molecules on surfaces.
 
-[ASE](https://wiki.fysik.dtu.dk/ase/) comes with an excellent selection of utilities for working with atomic surfaces, enabling the construction of many common surface facets, the definition of symmetrically equivalent points across these surfaces, and the adsorption of arbitrary molecules to these surface sites. However, determining which of these sites an adsorbed molecule is bound to without prior knowledge is a non-trivial task for computers.
+[ASE](https://wiki.fysik.dtu.dk/ase/) comes with an excellent selection of utilities for working with atomic surfaces, enabling the construction of many common surface facets, the definition of high-symmetry points across these surfaces, and the adsorption of arbitrary molecules to these surface sites. However, computationally determining which of these sites an adsorbed molecule is bound to without prior knowledge is a non-trivial task, due to the symmetric equivalence of many sites and high similarity of many surface facets.
 
 ASESurfaceFinder implements automated tools for training and validating random forest classification models (implemented in [scikit-learn](https://scikit-learn.org/stable/index.html)) that can identify surface sites based on the local atomic environment of adsorbed atoms. Given unseen adsorbed systems, it then enables these models to be used for prediction of both surface facet and high-symmetry adsorption site, to be used when cataloguing externally-generated adsorbed systems.
 
@@ -12,7 +12,7 @@ TBC
 
 ## Usage
 
-Given a workflow that produces XYZ geometries of molecules adsorbed on periodic solid surfaces in unknown locations, ASESurfaceFinder can be used to quickly categorise the adsorption sites by the surface's available high-symmetry points. For example, assuming the workflow can produce surface-adsorbate systems where the surface is one of the following (a 3x3x3 unit cell is shown):
+Given a workflow that produces XYZ geometries of molecules adsorbed on periodic solid surfaces in unknown locations, ASESurfaceFinder can be used to quickly categorise the adsorption sites by the surface's available high-symmetry points. For example, assuming the workflow can produce surface/adsorbate systems where the surface is one of the following (a 3x3x3 unit cell is shown):
 
 | Example Surface | ASE Construction | Visualisation (3x3x3) |
 |-----------------|------------------|-----------------------|
