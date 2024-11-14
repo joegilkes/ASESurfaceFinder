@@ -1,5 +1,5 @@
 [build-system]
-requires      = ["setuptools>=61.0.0", "wheel"]
+requires      = ["setuptools>=75.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,19 +7,24 @@ name = "asesurfacefinder"
 version = "1.0.0"
 description = "Machine learned location of chemical adsorbates on high-symmetry surface sites."
 readme = "README.md"
-authors = [{ name = "Joe Gilkes", email = "j.gilkes@warwick.ac.uk" }]
+authors = [{ name = "Joe Gilkes", email = "joe@joegilk.es" }]
 license = { file = "LICENSE" }
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    "Operating System :: Unix"
 ]
-keywords = ["ase", "surface", "atoms", "molecule", "chemistry", "adsorbate", "location"]
+keywords = ["ase", "surface", "atoms", "molecule", "chemistry", "adsorbate", "random forest", "classification"]
 dependencies = [
     "numpy",
+    "scipy",
     "scikit-learn",
     "dscribe",
-    "ase"
+    "ase",
+    "matplotlib"
 ]
 requires-python = ">=3.10"
 
