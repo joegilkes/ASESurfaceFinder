@@ -2,17 +2,22 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.utils import shuffle
 import numpy as np
 from ase.build import add_adsorbate
+from ase.geometry.analysis import Analysis
+from scipy import sparse
 
 from asesurfacefinder.utils import *
 
 from ase import Atoms
 from collections.abc import Sequence
+from typing import Union
+from dscribe.descriptors.descriptorlocal import DescriptorLocal
 
 
 class SurfaceFinder:
     def __init__(self, surfaces: Sequence[Atoms], 
                  labels: Sequence[str]=None,
-                 clf: RandomForestClassifier=None):
+                 clf: RandomForestClassifier=None,
+                 descriptor: Union[DescriptorLocal, str]='SOAP'):
         '''Predicts location of adsorbates on surfaces.
         
         Given a list of ASE surfaces with correctly initialised
@@ -31,6 +36,7 @@ class SurfaceFinder:
             surfaces: List of ASE `Atoms` objects representing surfaces with correctly maped high-symmetry adsorbtion points.
             labels: Optional list of names for surfaces, must be of equal length to `surfaces` if provided.
             clf: Optional `RandomForestClassifier` instance.
+            descriptor: Optional local descriptor type, must be one of ['SOAP', 'LMBTR'] or an instantiated generator fron DScribe.
         '''
         if labels == None:
             self.labels = [str(i+1) for i in range(len(surfaces))]
@@ -62,13 +68,22 @@ class SurfaceFinder:
 
         self.n_surfaces = len(surfaces)
         self.clf_preconfig = clf
+        if type(descriptor) == str:
+            if descriptor == 'SOAP':
+                self.desc = descgen_soap(self.elements)
+            elif descriptor == 'LMBTR' or descriptor == 'MBTR':
+                self.desc = descgen_mbtr(self.elements)
+            else:
+                raise ValueError('Unknown descriptor type specified.')
+        else:
+            self.desc = descriptor
 
 
     def train(self, 
               samples_per_site: int=500,
               surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1)],
-              ads_z_bounds: tuple[float, float]=(1.2, 2.2),
-              ads_xy_noise: float=1e-2,
+              ads_z_bounds: tuple[float, float]=(1.2, 2.75),
+              ads_xy_noise: float=5e-2,
               n_jobs: int=1
         ):
         '''Trains a random forest classifier to recognise surface sites.
@@ -78,8 +93,8 @@ class SurfaceFinder:
             surf_mults: (X,Y,Z) surface supercell multipliers to sample.
             ads_z_bounds: Tuple of minimum and maximum heights to train for adsorbates binding to surface sites.
             ads_xy_noise: XY-plane noise to add to sampled adsorbate position during training.
+            n_jobs: Number of processes to parallelise descriptor generation and training over.
         '''
-        desc = descgen(self.elements)
         n_mults = len(surf_mults)
         n_samples = sum([n_mults*len(sites)*samples_per_site for sites in self.surface_sites])
 
@@ -87,7 +102,7 @@ class SurfaceFinder:
         print('------------------------------------')
         print('  Constructing LMBTR descriptors for sampled systems...')
 
-        surf_mbtrs = np.zeros((n_samples, desc.get_number_of_features()))
+        surf_mbtrs = np.zeros((n_samples, self.desc.get_number_of_features()))
         labels = []
         start_idx = 0
         for i, (surface, sites, label) in enumerate(zip(self.surfaces, self.surface_sites, self.labels)):
@@ -107,7 +122,7 @@ class SurfaceFinder:
                 end_idx = start_idx + (len(sites)*samples_per_site)
                 slab = surface.copy()
                 print(f'  Adding {len(slab_positions)} MBTRs between idxs {start_idx} and {end_idx} ')
-                surf_mbtrs[start_idx:end_idx, :] = desc.create(slab, centers=slab_positions, n_jobs=n_jobs)
+                surf_mbtrs[start_idx:end_idx, :] = self.desc.create(slab, centers=slab_positions, n_jobs=n_jobs)
 
                 start_idx = end_idx
 
@@ -141,8 +156,7 @@ class SurfaceFinder:
         '''
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
-
-        desc = descgen(self.elements)
+        
         n_mults = len(surf_mults)
         n_samples = sum([n_mults*len(sites)*samples_per_site for sites in self.surface_sites])
 
@@ -150,7 +164,7 @@ class SurfaceFinder:
         print('------------------------------------')
         print('  Constructing LMBTR descriptors for sampled systems...')
 
-        surf_mbtrs = np.zeros((n_samples, desc.get_number_of_features()))
+        surf_mbtrs = np.zeros((n_samples, self.desc.get_number_of_features()))
         labels = []
         smults = []
         heights = []
@@ -176,7 +190,7 @@ class SurfaceFinder:
                 end_idx = start_idx + (len(sites)*samples_per_site)
                 slab = surface.copy()
                 print(f'  Adding {len(slab_positions)} MBTRs between idxs {start_idx} and {end_idx} ')
-                surf_mbtrs[start_idx:end_idx, :] = desc.create(slab, centers=slab_positions, n_jobs=self.clf.n_jobs)
+                surf_mbtrs[start_idx:end_idx, :] = self.desc.create(slab, centers=slab_positions, n_jobs=self.clf.n_jobs)
 
                 start_idx = end_idx
 
@@ -208,16 +222,106 @@ class SurfaceFinder:
             for i, idx in enumerate(incorrect_idxs):
                 print(f'{stat_labels[i].ljust(stat_clen)} | {pred_labels[idx]}')
 
+            print(f'\n{correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
+
         return 
 
 
-    def predict(self, ads_slabs: Sequence[Atoms]):
+    def predict(self, ads_slab: Atoms, allow_tag_guessing: bool=True):
         '''Predicts absorption site and surface facet of adsorbed systems.
+
+        Systems may contain multiple adsorbates, as well as non-
+        adsorbed, gas-phase molecules. This method separates all
+        molecules (adsorbed or otherwise) from the underlying
+        surface slab and locates all atoms in these molecules
+        that are bonded to the surface.
+
+        Surface-bound atoms are used for predicting adsorption
+        sites, which are then mapped back to the correct atoms 
+        in the molecules they originated from.
+
+        Returns the isolated surface slab, a list of isolated
+        molecule geometries, and a matching list of adsorption
+        site dicts. Each dict (one per molecule) is keyed by
+        the indices of adsorbed atoms, with dict values representing
+        predicted absorption site and coordination to the surface
+        at this site. In the event that a molecule was not
+        bound to the surface, its dict remains empty.
+
         
         Arguments:
-            ads_slabs: List of `Atoms` objects representing adsorbates on surface slabs.
+            ads_slab: `Atoms` object representing adsorbate(s) on surface slab.
+            allow_tag_guessing: Whether to allow surface/adsorbate layer tags to be guessed based on elemental composition if not present or otherwise malformed in input.
         '''
-        #TODO: Implement logic for separating adsorbates from surfaces and
-        # finding bonded atoms. May require some metric for average A-B bond
-        # lengths.
-        raise NotImplementedError()
+        if not hasattr(self, 'clf'):
+            raise AttributeError('No trained RandomForestClassifier found.')
+
+        tags = ads_slab.get_tags()
+        tag_errmsg = ''
+        if len(tags) != len(ads_slab):
+            tag_errmsg = 'Slab-adsorbate system has malformed tags (wrong length).'
+        elif np.sum(tags) <= 0:
+            tag_errmsg = 'Slab-adsorbate system has malformed tags (no surface layers)'
+        elif len(np.argwhere(tags==0).flatten()) == 0:
+            tag_errmsg = 'Slab-adsorbate system is missing an adsorbate (no ads tags)'
+        
+        if len(tag_errmsg) > 0:
+            if allow_tag_guessing:
+                print(tag_errmsg)
+                print('WARNING: Guessing surface/adsorbate separation from elements.')
+                tags = guess_tags(ads_slab, self.elements)
+            else:
+                raise RuntimeError(tag_errmsg)
+    
+        slabatom_slabidxs = np.argwhere(tags!=0).flatten()
+        molatom_slabidxs = np.argwhere(tags==0).flatten()
+
+        # Determine which atoms are bonded to the surface.
+        ana = Analysis(ads_slab)
+        adj = ana.adjacency_matrix[0]
+        bonded_molatom_slabidxs = []
+        for molatom_slabidx in molatom_slabidxs:
+            for slabatom_slabidx in slabatom_slabidxs:
+                bonded = bool(adj[(min(molatom_slabidx, slabatom_slabidx), max(molatom_slabidx, slabatom_slabidx))])
+                if bonded:
+                    bonded_molatom_slabidxs.append(molatom_slabidx)
+
+        bonded_molatom_slabidxs, bonded_molatom_coordinations = np.unique(bonded_molatom_slabidxs, return_counts=True)
+        print(f'{len(bonded_molatom_slabidxs)} adsorbed atoms found on surface at idxs {bonded_molatom_slabidxs}.')
+
+        # Isolate molecules.
+        mol_atoms = ads_slab[molatom_slabidxs]
+        mol_atoms.set_pbc([False, False, False])
+        mol_atoms.set_cell([0.0, 0.0, 0.0])
+        ana = Analysis(mol_atoms)
+        nl = ana.nl[0]
+        cm = nl.get_connectivity_matrix()
+        n_mol, molidx_to_moleculeidx = sparse.csgraph.connected_components(cm) # e.g. 2, array[0, 0, 0, 1, 1]
+        print(f'{n_mol} molecule(s) found on/above surface.')
+        molecules = [mol_atoms[np.argwhere(molidx_to_moleculeidx==i).flatten()] for i in range(n_mol)]
+
+        # Predict surface sites.
+        pos = ads_slab.get_positions()
+        slab = ads_slab[slabatom_slabidxs]
+        bonded_positions = pos[bonded_molatom_slabidxs]
+        mbtrs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
+        pred_labels = self.clf.predict(mbtrs)
+
+        # Assign surface sites to molecules.
+        slabidx_to_molidx = {int(idx): i for i, idx in enumerate(molatom_slabidxs)}
+        pred_labels_per_molecule = [{} for _ in range(n_mol)]
+        for i, bonded_molatom_slabidx in enumerate(bonded_molatom_slabidxs):
+            bonded_molatom_molidx = slabidx_to_molidx[bonded_molatom_slabidx]
+            moleculeidx = int(molidx_to_moleculeidx[bonded_molatom_molidx])
+            elem = ads_slab.symbols[bonded_molatom_slabidx]
+
+            unique, counts = np.unique(molidx_to_moleculeidx[:bonded_molatom_molidx+1], return_counts=True)
+            atomidx_in_mol = int(dict(zip(unique, counts))[moleculeidx])-1
+
+            pred_labels_per_molecule[moleculeidx][atomidx_in_mol] = {
+                'site': str(pred_labels[i]), 
+                'bonded_elem': elem,
+                'coordination': int(bonded_molatom_coordinations[i])
+            }
+
+        return slab, molecules, pred_labels_per_molecule

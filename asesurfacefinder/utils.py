@@ -1,21 +1,33 @@
-from dscribe.descriptors import LMBTR
+from dscribe.descriptors import LMBTR, SOAP
 import numpy as np
 
 from ase import Atoms
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
 
-def descgen(elements: Sequence[str]):
+def descgen_mbtr(elements: Sequence[str]):
     '''Constructs a local MBTR descriptor generator for the requested surface elements.'''
     lmbtr = LMBTR(
         species=elements,
         geometry={"function": "distance"},
-        grid={"min": 1, "max": 5, "n": 200, "sigma": 0.05},
+        grid={"min": 0.1, "max": 10.0, "n": 500, "sigma": 0.05},
         weighting={"function": "exp", "scale": 1, "threshold": 1e-2},
         periodic=True,
         normalization="none",
     )
     return lmbtr
+
+
+def descgen_soap(elements: Sequence[str]):
+    '''Constructs a SOAP descriptor generator for the requested surface elements.'''
+    soap = SOAP(
+        species=elements,
+        periodic=True,
+        r_cut=10.0,
+        n_max=8,
+        l_max=6,
+    )
+    return soap
 
 
 def sample_ads_pos(xy_pos: ArrayLike, z_bounds: tuple[float, float], xy_noise: float):
@@ -43,3 +55,13 @@ def get_absolute_abspos(slab: Atoms, site: str):
     pos = np.dot(spos, cell)
 
     return pos
+
+
+def guess_tags(slab: Atoms, surf_elements: Sequence[str]):
+    '''Try to approximate tags based on elemental difference between surfaces and adsorbate.'''
+    tags = np.zeros(len(slab), dtype=int)
+    for i, elem in enumerate(slab.symbols):
+        if elem in surf_elements:
+            tags[i] = 1
+
+    return tags
