@@ -1,5 +1,8 @@
 # ASESurfaceFinder
 
+![PyPI - Version](https://img.shields.io/pypi/v/asesurfacefinder) ![Conda Version](https://img.shields.io/conda/v/conda-forge/asesurfacefinder)
+
+
 A utility for determining surface facets and adsorption points of ASE-based systems consisting of molecules on surfaces.
 
 [ASE](https://wiki.fysik.dtu.dk/ase/) comes with an excellent selection of utilities for working with atomic surfaces, enabling the construction of many common surface facets, the definition of high-symmetry points across these surfaces, and the adsorption of arbitrary molecules to these surface sites. However, computationally determining which of these sites an adsorbed molecule is bound to without prior knowledge is a non-trivial task, due to the symmetric equivalence of many sites and high similarity of many surface facets.
