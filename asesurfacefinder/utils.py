@@ -84,3 +84,53 @@ def has_elems(atoms: Atoms, elements: Sequence[str]):
     syms = set(atoms.get_chemical_symbols())
     return len(set(elements).intersection(syms)) > 0
 
+
+def get_element_idxs(atoms: Atoms, element: str):
+    '''Returns the indices of atoms with chemical symbol matching `element`.'''
+    elems = atoms.get_chemical_symbols()
+    idxs = [i for i, e in enumerate(elems) if e == element]
+    return idxs
+
+
+def get_elements_idxs(atoms: Atoms, elements: Sequence[str]):
+    '''Returns the indices of atoms with chemical symbols matching those in `elements`.'''
+    idxs = np.flatten([get_element_idxs(atoms, e) for e in elements]).sort()
+    return idxs
+
+
+def _get_surface_idxs(slab: Atoms, base_surface: Atoms, tol: float=5e-2):
+    '''Test function.
+    
+    Attempts to find atoms in a given `slab` which match the element and
+    height of atoms in `base_surface`.
+    
+    While this should be able to identify atoms matching in surfaces of the
+    same height (i.e. same number of layers), different slab thicknesses will
+    cause problems.
+    
+    This should therefore only be used for testing.
+    '''
+    surf_elements = base_surface.get_chemical_symbols()
+    if not has_elems(slab, surf_elements):
+        raise ValueError('`slab` does not contain any elements in `base_surface`.')
+    
+    # Filter atoms and reset remaining to bottom of cell.
+    elems_idxs = get_elements_idxs(slab, surf_elements)
+    slab_reduced = slab.copy()[elems_idxs]
+    reduced_to_full_idxmap = {i: idx for i, idx in enumerate(elems_idxs)}
+    slab_lowest_z = np.min(slab_reduced.get_positions()[:, 2])
+    slab_reduced.set_positions(slab_reduced.get_positions()-[0.0, 0.0, slab_lowest_z])
+
+    # Reset base surface to bottom of cell
+    surf_lowest_z = np.min(base_surface.get_positions()[:, 2])
+    bsc = base_surface.copy()
+    bsc.set_positions(bsc.get_positions()-[0.0, 0.0, surf_lowest_z])
+    surf_heights = np.unique(bsc.get_positions()[:, 2])
+
+    # Find atoms matching heights.
+    slab_surf_idxs = []
+    for i, atom in enumerate(slab_reduced):
+        if np.any(np.abs(surf_heights - atom.position[2]) < tol):
+            slab_surf_idxs.append(reduced_to_full_idxmap[i])
+
+    return slab_surf_idxs
