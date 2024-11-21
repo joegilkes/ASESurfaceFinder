@@ -57,6 +57,18 @@ def get_absolute_abspos(slab: Atoms, site: str):
     return pos
 
 
+def check_tags(tags: Sequence[int], natoms: int):
+    if len(tags) != natoms:
+        tag_errmsg = 'Slab-adsorbate system has malformed tags (wrong length).'
+    elif np.sum(tags) <= 0:
+        tag_errmsg = 'Slab-adsorbate system has malformed tags (no surface layers)'
+    elif len(np.argwhere(tags==0).flatten()) == 0:
+        tag_errmsg = 'Slab-adsorbate system is missing an adsorbate (no ads tags)'
+    else:
+        tag_errmsg = ''
+    return tag_errmsg
+
+
 def guess_tags(slab: Atoms, surf_elements: Sequence[str]):
     '''Try to approximate tags based on elemental difference between surfaces and adsorbate.'''
     tags = np.zeros(len(slab), dtype=int)
@@ -65,3 +77,10 @@ def guess_tags(slab: Atoms, surf_elements: Sequence[str]):
             tags[i] = 1
 
     return tags
+
+
+def has_elems(atoms: Atoms, elements: Sequence[str]):
+    '''Determine if `atoms` contains any of `elements`.'''
+    syms = set(atoms.get_chemical_symbols())
+    return len(set(elements).intersection(syms)) > 0
+

@@ -6,6 +6,7 @@ from ase.geometry.analysis import Analysis
 from scipy import sparse
 
 from asesurfacefinder.utils import *
+from asesurfacefinder.exception import *
 
 from ase import Atoms
 from collections.abc import Sequence
@@ -256,24 +257,24 @@ class SurfaceFinder:
         print('------------------------------------')
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
+        
+        # Check slab (maybe) actually has a known surface.
+        if not has_elems(ads_slab, self.elements):
+            raise NoSurfaceError('Slab-adsorbate system contains no known surface.')
 
         tags = ads_slab.get_tags()
-        tag_errmsg = ''
-        if len(tags) != len(ads_slab):
-            tag_errmsg = 'Slab-adsorbate system has malformed tags (wrong length).'
-        elif np.sum(tags) <= 0:
-            tag_errmsg = 'Slab-adsorbate system has malformed tags (no surface layers)'
-        elif len(np.argwhere(tags==0).flatten()) == 0:
-            tag_errmsg = 'Slab-adsorbate system is missing an adsorbate (no ads tags)'
+        tag_errmsg = check_tags(tags, len(ads_slab))
+        if not allow_tag_guessing:
+            raise SurfaceTagError(tag_errmsg)
         
         if len(tag_errmsg) > 0:
-            if allow_tag_guessing:
-                print(tag_errmsg)
-                print('WARNING: Guessing surface/adsorbate separation from elements.')
-                tags = guess_tags(ads_slab, self.elements)
-            else:
-                raise RuntimeError(tag_errmsg)
-    
+            print(tag_errmsg)
+            print('WARNING: Guessing surface/adsorbate separation from elements.')
+            tags = guess_tags(ads_slab, self.elements)
+            tag_errmsg2 = check_tags(tags, len(ads_slab))
+            if len(tag_errmsg2) > 0:
+                raise SurfaceTagError(tag_errmsg2)
+
         slabatom_slabidxs = np.argwhere(tags!=0).flatten()
         molatom_slabidxs = np.argwhere(tags==0).flatten()
 
