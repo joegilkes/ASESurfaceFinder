@@ -158,7 +158,7 @@ slab, molecules, labels = sf.predict(real_surface_1)
 This returns three outputs:
 1. `slab`: The clean surface geometry as an `ase.Atoms`, without any adsorbates.
 2. `molecules`: A list of `ase.Atoms` representing the adsorbates and gas phase molecules found on and above the surface respectively.
-3. `labels`: A list of dictionaries corresponding to the entries in `molecules` containing the atoms of the respective adsorbate that are adsorbed onto the surface and their predicted sites.
+3. `labels`: A list of dictionaries corresponding to the entries in `molecules` containing the atoms of the respective adsorbate that are adsorbed onto the surface, their predicted sites and the adsorption heights above those sites.
 
 For example, given the above system:
 
@@ -168,9 +168,9 @@ for molecule, label in zip(molecules, labels):
 ```
 
 ```
-Atoms(symbols='OCH3', pbc=False, tags=...) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3}}
-Atoms(symbols='OCH3', pbc=False, tags=...) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3}}
-Atoms(symbols='OCH3', pbc=False, tags=...) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3}}
+Atoms(symbols='OCH3', pbc=False, tags=...) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3, 'height': 1.7941429100000015}}
+Atoms(symbols='OCH3', pbc=False, tags=...) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3, 'height': 1.79542644}}
+Atoms(symbols='OCH3', pbc=False, tags=...) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3, 'height': 1.7944157000000018}}
 Atoms(symbols='CHOH3', pbc=False, tags=...) {}
 ```
 
@@ -195,9 +195,9 @@ for molecule, label in zip(molecules, labels):
 ```
 
 ```
-Atoms(symbols='CO', pbc=False) {0: {'site': 'Au_fcc111_ontop', 'bonded_elem': 'C', 'coordination': 1}}
-Atoms(symbols='OH', pbc=False) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3}}
-Atoms(symbols='NHCH3', pbc=False) {0: {'site': 'Au_fcc111_bridge', 'bonded_elem': 'N', 'coordination': 2}}
+Atoms(symbols='CO', pbc=False) {0: {'site': 'Au_fcc111_ontop', 'bonded_elem': 'C', 'coordination': 1, 'height': 2.4249690500000014}}
+Atoms(symbols='OH', pbc=False) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O', 'coordination': 3, 'height': 1.7710107300000004}}
+Atoms(symbols='NHCH3', pbc=False) {0: {'site': 'Au_fcc111_bridge', 'bonded_elem': 'N', 'coordination': 2, 'height': 1.9164665700000008}}
 ```
 
 #### A note on adsorbate identification
