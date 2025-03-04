@@ -315,6 +315,10 @@ class SurfaceFinder:
         # Predict surface sites.
         pos = ads_slab.get_positions()
         slab = ads_slab[slabatom_slabidxs]
+        if ads_slab.info.get('top layer atom index') is None:
+            slab_max_z = slab.positions[:, 2].max()
+        else:
+            slab_max_z = ads_slab.positions[ads_slab.info['top layer atom index'], 2]
         bonded_positions = pos[bonded_molatom_slabidxs]
         descs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
         pred_labels = self.clf.predict(descs)
@@ -326,6 +330,7 @@ class SurfaceFinder:
             bonded_molatom_molidx = slabidx_to_molidx[bonded_molatom_slabidx]
             moleculeidx = int(molidx_to_moleculeidx[bonded_molatom_molidx])
             elem = ads_slab.symbols[bonded_molatom_slabidx]
+            height = ads_slab.positions[bonded_molatom_slabidx, 2] - slab_max_z
 
             unique, counts = np.unique(molidx_to_moleculeidx[:bonded_molatom_molidx+1], return_counts=True)
             atomidx_in_mol = int(dict(zip(unique, counts))[moleculeidx])-1
@@ -333,7 +338,8 @@ class SurfaceFinder:
             pred_labels_per_molecule[moleculeidx][atomidx_in_mol] = {
                 'site': str(pred_labels[i]), 
                 'bonded_elem': elem,
-                'coordination': int(bonded_molatom_coordinations[i])
+                'coordination': int(bonded_molatom_coordinations[i]),
+                'height': height
             }
 
         return slab, molecules, pred_labels_per_molecule
