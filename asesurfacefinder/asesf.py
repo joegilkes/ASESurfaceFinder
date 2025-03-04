@@ -315,10 +315,10 @@ class SurfaceFinder:
         # Predict surface sites.
         pos = ads_slab.get_positions()
         slab = ads_slab[slabatom_slabidxs]
-        if ads_slab.info.get('top layer atom index') is None:
+        if ads_slab.info.get('adsorbate_info') is None and ads_slab.info['adsorbate_info'].get('top layer atom index') is None:
             slab_max_z = slab.positions[:, 2].max()
         else:
-            slab_max_z = ads_slab.positions[ads_slab.info['top layer atom index'], 2]
+            slab_max_z = ads_slab.positions[ads_slab.info['adsorbate_info']['top layer atom index'], 2]
         bonded_positions = pos[bonded_molatom_slabidxs]
         descs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
         pred_labels = self.clf.predict(descs)
