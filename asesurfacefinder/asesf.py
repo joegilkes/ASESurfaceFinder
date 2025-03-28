@@ -319,9 +319,11 @@ class SurfaceFinder:
             slab_max_z = slab.positions[:, 2].max()
         else:
             slab_max_z = ads_slab.positions[ads_slab.info['adsorbate_info']['top layer atom index'], 2]
-        bonded_positions = pos[bonded_molatom_slabidxs]
-        descs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
-        pred_labels = self.clf.predict(descs)
+        # Only predict if there are actually adsorbed atoms.
+        if len(bonded_molatom_slabidxs) > 0:
+            bonded_positions = pos[bonded_molatom_slabidxs]
+            descs = self.desc.create(slab, bonded_positions, n_jobs=self.clf.n_jobs)
+            pred_labels = self.clf.predict(descs)
 
         # Assign surface sites to molecules.
         slabidx_to_molidx = {int(idx): i for i, idx in enumerate(molatom_slabidxs)}
