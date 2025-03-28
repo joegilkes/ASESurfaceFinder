@@ -315,7 +315,7 @@ class SurfaceFinder:
         # Predict surface sites.
         pos = ads_slab.get_positions()
         slab = ads_slab[slabatom_slabidxs]
-        if ads_slab.info.get('adsorbate_info') is None and ads_slab.info['adsorbate_info'].get('top layer atom index') is None:
+        if ads_slab.info.get('adsorbate_info') is None or ads_slab.info['adsorbate_info'].get('top layer atom index') is None:
             slab_max_z = slab.positions[:, 2].max()
         else:
             slab_max_z = ads_slab.positions[ads_slab.info['adsorbate_info']['top layer atom index'], 2]
