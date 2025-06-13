@@ -3,6 +3,7 @@ from sklearn.utils import shuffle
 import numpy as np
 from ase.build import add_adsorbate
 from ase.geometry.analysis import Analysis
+from ase.neighborlist import natural_cutoffs
 from scipy import sparse
 
 from asesurfacefinder.utils import *
@@ -233,7 +234,7 @@ class SurfaceFinder:
         return 
 
 
-    def predict(self, ads_slab: Atoms, allow_tag_guessing: bool=True):
+    def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True):
         '''Predicts adsorption site and surface facet of adsorbed systems.
 
         Systems may contain multiple adsorbates, as well as non-
@@ -257,6 +258,7 @@ class SurfaceFinder:
         
         Arguments:
             ads_slab: `Atoms` object representing adsorbate(s) on surface slab.
+            nl_cutoffs: List of ASE `NeighborList` cutoffs to use for identifying bonding to surface. Defaults to `ase.neighborlist.natural_cutoffs(ads_slab)`.
             allow_tag_guessing: Whether to allow surface/adsorbate layer tags to be guessed based on elemental composition if not present or otherwise malformed in input.
         '''
         if self.verbose: 
@@ -289,23 +291,26 @@ class SurfaceFinder:
         molatom_slabidxs = np.argwhere(tags==0).flatten()
 
         # Determine which atoms are bonded to the surface.
-        ana = Analysis(ads_slab)
-        adj = ana.adjacency_matrix[0]
+        cutoffs = nl_cutoffs if nl_cutoffs is not None else natural_cutoffs(ads_slab)
+        if type(cutoffs) is list:
+            cutoffs = np.array(cutoffs)
+        ana = Analysis(ads_slab, cutoffs=cutoffs, self_interaction=False, bothways=True)
+        nl = ana.nl[0]
         bonded_molatom_slabidxs = []
         for molatom_slabidx in molatom_slabidxs:
-            for slabatom_slabidx in slabatom_slabidxs:
-                bonded = bool(adj[(min(molatom_slabidx, slabatom_slabidx), max(molatom_slabidx, slabatom_slabidx))])
-                if bonded:
-                    bonded_molatom_slabidxs.append(molatom_slabidx)
+            molatom_neighbors, _ = nl.get_neighbors(molatom_slabidx)
+            if np.any([slabatom_slabidx in molatom_neighbors for slabatom_slabidx in slabatom_slabidxs]):
+                bonded_molatom_slabidxs.append(molatom_slabidx)
 
         bonded_molatom_slabidxs, bonded_molatom_coordinations = np.unique(bonded_molatom_slabidxs, return_counts=True)
         if self.verbose: print(f'  {len(bonded_molatom_slabidxs)} adsorbed atoms found on surface at idxs {bonded_molatom_slabidxs}.')
 
         # Isolate molecules.
         mol_atoms = ads_slab[molatom_slabidxs]
+        mol_cutoffs = cutoffs[molatom_slabidxs]
         mol_atoms.set_pbc([False, False, False])
         mol_atoms.set_cell([0.0, 0.0, 0.0])
-        ana = Analysis(mol_atoms)
+        ana = Analysis(mol_atoms, cutoffs=mol_cutoffs)
         nl = ana.nl[0]
         cm = nl.get_connectivity_matrix()
         n_mol, molidx_to_moleculeidx = sparse.csgraph.connected_components(cm) # e.g. 2, array[0, 0, 0, 1, 1]
