@@ -297,10 +297,11 @@ class SurfaceFinder:
         ana = Analysis(ads_slab, cutoffs=cutoffs, self_interaction=False, bothways=True)
         nl = ana.nl[0]
         bonded_molatom_slabidxs = []
-        for molatom_slabidx in molatom_slabidxs:
-            molatom_neighbors, _ = nl.get_neighbors(molatom_slabidx)
-            if np.any([slabatom_slabidx in molatom_neighbors for slabatom_slabidx in slabatom_slabidxs]):
-                bonded_molatom_slabidxs.append(molatom_slabidx)
+        for slabatom_slabidx in slabatom_slabidxs:
+            slabatom_neighbors, _ = nl.get_neighbors(slabatom_slabidx)
+            for molatom_slabidx in molatom_slabidxs:
+                if molatom_slabidx in slabatom_neighbors:
+                    bonded_molatom_slabidxs.append(molatom_slabidx)
 
         bonded_molatom_slabidxs, bonded_molatom_coordinations = np.unique(bonded_molatom_slabidxs, return_counts=True)
         if self.verbose: print(f'  {len(bonded_molatom_slabidxs)} adsorbed atoms found on surface at idxs {bonded_molatom_slabidxs}.')
