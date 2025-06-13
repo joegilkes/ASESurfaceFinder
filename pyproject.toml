@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "asesurfacefinder"
-version = "1.0.6"
+version = "1.0.7"
 description = "Machine learned location of chemical adsorbates on high-symmetry surface sites."
 readme = "README.md"
 authors = [{ name = "Joe Gilkes", email = "joe@joegilk.es" }]
