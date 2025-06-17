@@ -12,14 +12,14 @@ class SamplePlotter:
     def __init__(self, surface: Atoms,
                  samples_per_site: int=500,
                  ads_z_bounds: tuple[float, float]=(1.2, 2.75),
-                 ads_xy_noise: float=5e-2):
+                 ads_r_max: float=5e-2):
         '''Samples surface sites and plots adsorbate positions.
         
         Arguments:
             surface: ASE surface to sample.
             samples_per_site: Number of adsorbate positions to sample on each surface site.
             ads_z_bounds: Tuple of minimum and maximum heights to train for adsorbates binding to surface sites.
-            ads_xy_noise: XY-plane noise to add to sampled adsorbate position during training.
+            ads_r_max: Maximum radius from adsorbate position to sample.
         '''
         self.surface = surface
         self.sites = surface.info['adsorbate_info']['sites'].keys()
@@ -35,7 +35,7 @@ class SamplePlotter:
         for i, site in enumerate(self.sites):
             site_abspos = get_absolute_abspos(surface, site)
             for _ in range(samples_per_site):
-                xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_xy_noise)
+                xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_r_max)
                 add_adsorbate(self.surface, self.atom_types[i], z, xy)
                 self.radii.append(ads_radius)
 

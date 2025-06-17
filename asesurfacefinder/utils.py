@@ -30,20 +30,25 @@ def descgen_soap(elements: Sequence[str]):
     return soap
 
 
-def sample_ads_pos(xy_pos: ArrayLike, z_bounds: tuple[float, float], xy_noise: float):
+def sample_ads_pos(xy_pos: ArrayLike, z_bounds: tuple[float, float], r_max: float):
     '''Sample an adsorbate position.
-    
-    Given the absolute XY position of a high-symmetry point, samples
-    a new XY point by adding normally distributed random noise, and
-    an adsorption height from a uniform distribution between upper
-    and lower bounds.
+
+    Uniformly samples an XY position displaced from `xy_pos` within a 
+    circle of radius `r_max`. Samples a Z position uniformly within the
+    bounds defined by `z_bounds`, but scales the upper bound based on the
+    distance from the center of the circle to the edge to form a 
+    hemispheroidal sampling volume.
 
     Returns a tuple of new XY position and adsorption height.
     '''
-    new_xy_pos = np.copy(xy_pos)
-    new_xy_pos += np.random.normal(0.0, xy_noise, 2)
+    r = np.random.uniform(0, r_max)
+    theta = np.random.uniform(0, 2 * np.pi)
+    xy_sample = np.array([r * np.cos(theta), r * np.sin(theta)])
+    new_xy_pos = xy_pos + xy_sample
 
-    z = np.random.uniform(z_bounds[0], z_bounds[1])
+    z_diff = z_bounds[1] - z_bounds[0]
+    z_upper = max(z_bounds[0] + (np.sqrt(r_max**2 - r**2)/r_max)*z_diff, z_bounds[0])
+    z = np.random.uniform(z_bounds[0], z_upper)
 
     return new_xy_pos, z
 

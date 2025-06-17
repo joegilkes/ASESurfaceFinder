@@ -89,7 +89,7 @@ class SurfaceFinder:
               samples_per_site: int=500,
               surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1)],
               ads_z_bounds: tuple[float, float]=(1.2, 2.75),
-              ads_xy_noise: float=1e-2,
+              ads_r_max: float=1e-2,
               n_jobs: int=1
         ):
         '''Trains a random forest classifier to recognise surface sites.
@@ -98,7 +98,7 @@ class SurfaceFinder:
             samples_per_site: Number of adsorbate positions to sample on each surface site during training.
             surf_mults: (X,Y,Z) surface supercell multipliers to sample.
             ads_z_bounds: Tuple of minimum and maximum heights to train for adsorbates binding to surface sites.
-            ads_xy_noise: XY-plane noise to add to sampled adsorbate position during training.
+            ads_r_max: Maximum radius from adsorbate position to sample during training.
             n_jobs: Number of processes to parallelise descriptor generation and training over.
         '''
         if self.verbose:
@@ -121,7 +121,7 @@ class SurfaceFinder:
                     site_abspos = get_absolute_abspos(surface, site)
                     for l in range(samples_per_site):
                         slab = surface.copy()
-                        xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_xy_noise)
+                        xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_r_max)
                         add_adsorbate(slab, 'H', z, xy)
                         slab_positions[(k*samples_per_site)+l, :] = slab.get_positions()[-1]
                         labels.append(f'{label}_{site}')
@@ -151,7 +151,7 @@ class SurfaceFinder:
                  samples_per_site: int=500,
                  surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1), (2,2,1)],
                  ads_z_bounds: tuple[float, float]=(1.3, 2.7),
-                 ads_xy_noise: float=1e-2
+                 ads_r_max: float=1e-2
         ):
         '''Validates a random forest classifier's ability to recognise surface sites.
         
@@ -159,7 +159,7 @@ class SurfaceFinder:
             samples_per_site: Number of adsorbate positions to sample on each surface site during validation.
             surf_mults: (X,Y,Z) surface supercell multipliers to sample.
             ads_z_bounds: Tuple of minimum and maximum heights to validate for adsorbates binding to surface sites.
-            ads_xy_noise: XY-plane noise to add to sampled adsorbate position during validation.
+            ads_r_max: Maximum radius from adsorbate position to sample during validation.
         '''
         if self.verbose: 
             print('ASESurfaceFinder Validation')
@@ -186,7 +186,7 @@ class SurfaceFinder:
                     site_abspos = get_absolute_abspos(surface, site)
                     for l in range(samples_per_site):
                         slab = surface.copy()
-                        xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_xy_noise)
+                        xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_r_max)
                         add_adsorbate(slab, 'H', z, xy)
                         slab_positions[(k*samples_per_site)+l, :] = slab.get_positions()[-1]
                         labels.append(f'{label}_{site}')
@@ -221,7 +221,7 @@ class SurfaceFinder:
         if len(incorrect_idxs) > 0:
             stat_labels = []
             for i in incorrect_idxs:
-                stat_labels.append(f'{labels[i]} {smults[i]} (h = {heights[i]:.2f}, d = {displacements[i]:.2f})')
+                stat_labels.append(f'{labels[i]} {smults[i]} (h = {heights[i]:.2f}, r = {displacements[i]:.2f})')
 
             stat_clen = np.max([len(lab) for lab in stat_labels])
             print(f'True {" "*(stat_clen-5)} | Predicted')
