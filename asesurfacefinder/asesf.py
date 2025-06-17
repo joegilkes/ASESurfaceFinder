@@ -7,6 +7,7 @@ from ase.neighborlist import natural_cutoffs
 from scipy import sparse
 
 from asesurfacefinder.utils import *
+from asesurfacefinder.sample_bounds import SampleBounds
 from asesurfacefinder.exception import *
 
 from ase import Atoms
@@ -18,8 +19,10 @@ from dscribe.descriptors.descriptorlocal import DescriptorLocal
 class SurfaceFinder:
     def __init__(self, surfaces: Sequence[Atoms], 
                  labels: Sequence[str]=None,
+                 sample_bounds: Sequence[dict]=[],
                  clf: RandomForestClassifier=None,
                  descriptor: Union[DescriptorLocal, str]='SOAP',
+                 sample_defaults: SampleBounds = SampleBounds(0.1, 1.0, 2.75),
                  verbose: bool=True):
         '''Predicts location of adsorbates on surfaces.
         
@@ -27,6 +30,12 @@ class SurfaceFinder:
         high-symmetry adsorption points, trains a random forest
         classification model to predict the high-symmetry point
         that adsorbates are bound to.
+
+        Each surface can take a dictionary of `SampleBounds` that
+        defines the volume above each surface site in which 
+        adsorption points are sampled during training. If this is
+        not provided for a particular surface/site, this falls
+        back to the bounds in `sample_defaults`.
 
         Can evaluate its own performance on generated surface/adsorbate
         examples in a secondary validation step.
@@ -38,8 +47,10 @@ class SurfaceFinder:
         Arguments:
             surfaces: List of ASE `Atoms` objects representing surfaces with correctly maped high-symmetry adsorption points.
             labels: Optional list of names for surfaces, must be of equal length to `surfaces` if provided.
+            sample_bounds: Optional list of dicts specifying `SampleBounds` instances for each surface site.
             clf: Optional `RandomForestClassifier` instance.
             descriptor: Optional local descriptor type, must be one of ['SOAP', 'LMBTR'] or an instantiated generator fron DScribe.
+            sample_defaults: Default `SampleBounds` to fall back on when one is not specified for a site in `sample_bounds`.
             verbose: Whether to print information to stdout.
         '''
         if labels == None:
@@ -48,10 +59,14 @@ class SurfaceFinder:
             raise ValueError('Incorrect number of labels for provided number of surfaces.')
         else:
             self.labels = labels
+
+        if len(sample_bounds) != 0 and len(sample_bounds) != len(surfaces):
+            raise ValueError('Incorrect number of sample bounds dicts for provided number of surfaces.')
         
         self.elements = []
         self.surface_sites = []
         self.surfaces = []
+        self.sample_bounds = [{} for _ in range(len(surfaces))]
         for i, surface in enumerate(surfaces):
             for elem in surface.get_chemical_symbols():
                 if elem not in self.elements:
@@ -64,6 +79,11 @@ class SurfaceFinder:
             
             sites = info['sites'].keys()
             self.surface_sites.append(sites)
+            for site in sites:
+                if len(sample_bounds) == 0 or site not in sample_bounds[i].keys():
+                    self.sample_bounds[i][site] = sample_defaults
+                else:
+                    self.sample_bounds[i][site] = sample_bounds[i][site]
             
             if sum(surface.cell[2]) == 0.0:
                 surface.center(10.0, axis=2)
@@ -88,8 +108,6 @@ class SurfaceFinder:
     def train(self, 
               samples_per_site: int=500,
               surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1)],
-              ads_z_bounds: tuple[float, float]=(1.2, 2.75),
-              ads_xy_noise: float=1e-2,
               n_jobs: int=1
         ):
         '''Trains a random forest classifier to recognise surface sites.
@@ -97,8 +115,6 @@ class SurfaceFinder:
         Arguments:
             samples_per_site: Number of adsorbate positions to sample on each surface site during training.
             surf_mults: (X,Y,Z) surface supercell multipliers to sample.
-            ads_z_bounds: Tuple of minimum and maximum heights to train for adsorbates binding to surface sites.
-            ads_xy_noise: XY-plane noise to add to sampled adsorbate position during training.
             n_jobs: Number of processes to parallelise descriptor generation and training over.
         '''
         if self.verbose:
@@ -121,7 +137,8 @@ class SurfaceFinder:
                     site_abspos = get_absolute_abspos(surface, site)
                     for l in range(samples_per_site):
                         slab = surface.copy()
-                        xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_xy_noise)
+                        bounds = self.sample_bounds[i][site]
+                        xy, z = sample_ads_pos(site_abspos, bounds.z_bounds, bounds.r_max)
                         add_adsorbate(slab, 'H', z, xy)
                         slab_positions[(k*samples_per_site)+l, :] = slab.get_positions()[-1]
                         labels.append(f'{label}_{site}')
@@ -150,22 +167,23 @@ class SurfaceFinder:
     def validate(self,
                  samples_per_site: int=500,
                  surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1), (2,2,1)],
-                 ads_z_bounds: tuple[float, float]=(1.3, 2.7),
-                 ads_xy_noise: float=1e-2
+                 sample_bounds: Sequence[dict]=[]
         ):
         '''Validates a random forest classifier's ability to recognise surface sites.
         
         Arguments:
             samples_per_site: Number of adsorbate positions to sample on each surface site during validation.
-            surf_mults: (X,Y,Z) surface supercell multipliers to sample.
-            ads_z_bounds: Tuple of minimum and maximum heights to validate for adsorbates binding to surface sites.
-            ads_xy_noise: XY-plane noise to add to sampled adsorbate position during validation.
+            surf_mults: Optional (X,Y,Z) surface supercell multipliers to sample.
+            sample_bounds: Optional list of dicts that can override the `SampleBounds` used in training.
         '''
         if self.verbose: 
             print('ASESurfaceFinder Validation')
             print('------------------------------------')
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
+        
+        if len(sample_bounds) != 0 and len(sample_bounds) != len(self.surfaces):
+            raise ValueError('Incorrect number of sample bounds dicts for trained number of surfaces.')
         
         n_mults = len(surf_mults)
         n_samples = sum([n_mults*len(sites)*samples_per_site for sites in self.surface_sites])
@@ -184,9 +202,14 @@ class SurfaceFinder:
 
                 for k, site in enumerate(sites):
                     site_abspos = get_absolute_abspos(surface, site)
+                    if len(sample_bounds) != 0 and site in sample_bounds[i].keys():
+                        bounds = sample_bounds[i][site]
+                    else:
+                        bounds = self.sample_bounds[i][site]
+
                     for l in range(samples_per_site):
                         slab = surface.copy()
-                        xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_xy_noise)
+                        xy, z = sample_ads_pos(site_abspos, bounds.z_bounds, bounds.r_max)
                         add_adsorbate(slab, 'H', z, xy)
                         slab_positions[(k*samples_per_site)+l, :] = slab.get_positions()[-1]
                         labels.append(f'{label}_{site}')
@@ -221,7 +244,7 @@ class SurfaceFinder:
         if len(incorrect_idxs) > 0:
             stat_labels = []
             for i in incorrect_idxs:
-                stat_labels.append(f'{labels[i]} {smults[i]} (h = {heights[i]:.2f}, d = {displacements[i]:.2f})')
+                stat_labels.append(f'{labels[i]} {smults[i]} (h = {heights[i]:.2f}, r = {displacements[i]:.2f})')
 
             stat_clen = np.max([len(lab) for lab in stat_labels])
             print(f'True {" "*(stat_clen-5)} | Predicted')

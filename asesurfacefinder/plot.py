@@ -5,21 +5,22 @@ from ase.data import covalent_radii, chemical_symbols
 from ase.data.colors import jmol_colors
 from matplotlib.lines import Line2D
 
+from asesurfacefinder.sample_bounds import SampleBounds
 from asesurfacefinder.utils import get_absolute_abspos, sample_ads_pos
 
 
 class SamplePlotter:
     def __init__(self, surface: Atoms,
                  samples_per_site: int=500,
-                 ads_z_bounds: tuple[float, float]=(1.2, 2.75),
-                 ads_xy_noise: float=5e-2):
+                 sample_bounds: dict={},
+                 sample_defaults:SampleBounds=SampleBounds(0.1, 1.0, 2.75)):
         '''Samples surface sites and plots adsorbate positions.
         
         Arguments:
             surface: ASE surface to sample.
             samples_per_site: Number of adsorbate positions to sample on each surface site.
-            ads_z_bounds: Tuple of minimum and maximum heights to train for adsorbates binding to surface sites.
-            ads_xy_noise: XY-plane noise to add to sampled adsorbate position during training.
+            sample_bounds: Optional dict binding site names to `SampleBounds` instances.
+            sample_defaults: Default `SampleBounds` to fall back on when one is not specified for a site in `sample_bounds`.
         '''
         self.surface = surface
         self.sites = surface.info['adsorbate_info']['sites'].keys()
@@ -34,8 +35,9 @@ class SamplePlotter:
 
         for i, site in enumerate(self.sites):
             site_abspos = get_absolute_abspos(surface, site)
+            bounds = sample_bounds[site] if site in sample_bounds.keys() else sample_defaults
             for _ in range(samples_per_site):
-                xy, z = sample_ads_pos(site_abspos, ads_z_bounds, ads_xy_noise)
+                xy, z = sample_ads_pos(site_abspos, bounds.z_bounds, bounds.r_max)
                 add_adsorbate(self.surface, self.atom_types[i], z, xy)
                 self.radii.append(ads_radius)
 
