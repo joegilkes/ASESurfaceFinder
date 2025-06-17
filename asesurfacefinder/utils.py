@@ -4,6 +4,7 @@ import numpy as np
 from ase import Atoms
 from numpy.typing import ArrayLike
 from collections.abc import Sequence
+from typing import Union
 
 def descgen_mbtr(elements: Sequence[str]):
     '''Constructs a local MBTR descriptor generator for the requested surface elements.'''
@@ -30,14 +31,18 @@ def descgen_soap(elements: Sequence[str]):
     return soap
 
 
-def sample_ads_pos(xy_pos: ArrayLike, z_bounds: tuple[float, float], r_max: float):
+def sample_ads_pos(xy_pos: ArrayLike, z_bounds: Union[tuple[float, float], tuple[float, float, float]], r_max: float):
     '''Sample an adsorbate position.
 
     Uniformly samples an XY position displaced from `xy_pos` within a 
-    circle of radius `r_max`. Samples a Z position uniformly within the
-    bounds defined by `z_bounds`, but scales the upper bound based on the
-    distance from the center of the circle to the edge to form a 
-    hemispheroidal sampling volume.
+    circle of radius `r_max`.
+     
+    Samples a Z position uniformly within the bounds defined by `z_bounds`.
+    If this is a tuple of two numbers `(z_mid, z_max)`, defines a hemispheroidal 
+    sampling volume with a flat base by scaling the upper sampling bound based
+    on the distance from the center of the circle to the XY position.
+    If this is a tuple of three numbers `(z_min, z_mid, z_max)`, defines an
+    ovoid sampling volume with different upper and lower halves.
 
     Returns a tuple of new XY position and adsorption height.
     '''
@@ -46,9 +51,17 @@ def sample_ads_pos(xy_pos: ArrayLike, z_bounds: tuple[float, float], r_max: floa
     xy_sample = np.array([r * np.cos(theta), r * np.sin(theta)])
     new_xy_pos = xy_pos + xy_sample
 
-    z_diff = z_bounds[1] - z_bounds[0]
-    z_upper = max(z_bounds[0] + (np.sqrt(r_max**2 - r**2)/r_max)*z_diff, z_bounds[0])
-    z = np.random.uniform(z_bounds[0], z_upper)
+    if len(z_bounds) == 2:
+        z_diff = z_bounds[1] - z_bounds[0]
+        z_upper = max(z_bounds[0] + (np.sqrt(r_max**2 - r**2)/r_max)*z_diff, z_bounds[0])
+        z = np.random.uniform(z_bounds[0], z_upper)
+    elif len(z_bounds) == 3:
+        z_min, z_mid, z_max = z_bounds
+        z_diff_lower = z_mid - z_min
+        z_lower = min(z_mid - (np.sqrt(r_max**2 - r**2)/r_max)*z_diff_lower, z_mid)
+        z_diff_upper = z_max - z_mid
+        z_upper = max(z_mid + (np.sqrt(r_max**2 - r**2)/r_max)*z_diff_upper, z_mid)
+        z = np.random.uniform(z_lower, z_upper)
 
     return new_xy_pos, z
 
