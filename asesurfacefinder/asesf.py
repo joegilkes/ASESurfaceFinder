@@ -167,7 +167,7 @@ class SurfaceFinder:
     def validate(self,
                  samples_per_site: int=500,
                  surf_mults: Sequence[tuple[int, int, int]]=[(1,1,1), (2,2,1)],
-                 sample_bounds: Sequence[dict]=None
+                 sample_bounds: Sequence[dict]=[]
         ):
         '''Validates a random forest classifier's ability to recognise surface sites.
         
@@ -206,7 +206,7 @@ class SurfaceFinder:
                         bounds = sample_bounds[i][site]
                     else:
                         bounds = self.sample_bounds[i][site]
-                        
+
                     for l in range(samples_per_site):
                         slab = surface.copy()
                         xy, z = sample_ads_pos(site_abspos, bounds.z_bounds, bounds.r_max)
