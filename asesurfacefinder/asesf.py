@@ -5,6 +5,7 @@ from ase.build import add_adsorbate
 from ase.geometry.analysis import Analysis
 from ase.neighborlist import natural_cutoffs
 from scipy import sparse
+from importlib.metadata import version, PackageNotFoundError
 
 from asesurfacefinder.utils import *
 from asesurfacefinder.sample_bounds import SampleBounds
@@ -20,6 +21,7 @@ class SurfaceFinder:
     def __init__(self, surfaces: Sequence[Atoms], 
                  labels: Sequence[str]=None,
                  sample_bounds: Sequence[dict]=[],
+                 site_coordinations: Sequence[dict]=[],
                  clf: RandomForestClassifier=None,
                  descriptor: Union[DescriptorLocal, str]='SOAP',
                  sample_defaults: SampleBounds = SampleBounds(0.1, 1.0, 2.75),
@@ -48,6 +50,7 @@ class SurfaceFinder:
             surfaces: List of ASE `Atoms` objects representing surfaces with correctly maped high-symmetry adsorption points.
             labels: Optional list of names for surfaces, must be of equal length to `surfaces` if provided.
             sample_bounds: Optional list of dicts specifying `SampleBounds` instances for each surface site.
+            site_coordinations: Optional list of dicts specifying integer coordination of each surface site.
             clf: Optional `RandomForestClassifier` instance.
             descriptor: Optional local descriptor type, must be one of ['SOAP', 'LMBTR'] or an instantiated generator fron DScribe.
             sample_defaults: Default `SampleBounds` to fall back on when one is not specified for a site in `sample_bounds`.
@@ -62,12 +65,19 @@ class SurfaceFinder:
 
         if len(sample_bounds) != 0 and len(sample_bounds) != len(surfaces):
             raise ValueError('Incorrect number of sample bounds dicts for provided number of surfaces.')
+        if len(site_coordinations) != 0 and len(site_coordinations) != len(surfaces):
+            raise ValueError('Incorrect number of site coordination dicts for provided number of surfaces.')
         
         self.elements = []
         self.surface_sites = []
+        self.site_coordinations = [{} for _ in range(len(surfaces))]
         self.surfaces = []
         self.sample_bounds = [{} for _ in range(len(surfaces))]
         for i, surface in enumerate(surfaces):
+            if sum(surface.cell[2]) == 0.0:
+                surface.center(10.0, axis=2)
+            self.surfaces.append(surface)
+
             for elem in surface.get_chemical_symbols():
                 if elem not in self.elements:
                     self.elements.append(elem)
@@ -84,11 +94,11 @@ class SurfaceFinder:
                     self.sample_bounds[i][site] = sample_defaults
                 else:
                     self.sample_bounds[i][site] = sample_bounds[i][site]
-            
-            if sum(surface.cell[2]) == 0.0:
-                surface.center(10.0, axis=2)
 
-            self.surfaces.append(surface)
+                if len(site_coordinations) == 0 or site not in site_coordinations[i].keys():
+                    self.site_coordinations[i][site] = get_site_coordination(surface, site, self.sample_bounds[i][site])
+                else:
+                    self.site_coordinations[i][site] = site_coordinations[i][site]
 
         self.n_surfaces = len(surfaces)
         self.clf_preconfig = clf
@@ -103,6 +113,18 @@ class SurfaceFinder:
             self.desc = descriptor
 
         self.verbose = verbose
+
+        try:
+            _version = version(__package__ or __name__)
+        except PackageNotFoundError:
+            _version = '[Not installed]'
+        print(f'ASESurfaceFinder v{_version}')
+        print('-----------------------')
+        print('Loaded surfaces:')
+        for i in range(self.n_surfaces):
+            print(f' - Surface {self.labels[i]}')
+            for site in self.surface_sites[i]:
+                print(f'   - Site \'{site}\' (coordination: {self.site_coordinations[i][site]})')
 
 
     def train(self, 
@@ -257,7 +279,7 @@ class SurfaceFinder:
         return 
 
 
-    def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True):
+    def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True, reject_wrong_coordination=False):
         '''Predicts adsorption site and surface facet of adsorbed systems.
 
         Systems may contain multiple adsorbates, as well as non-
@@ -278,11 +300,11 @@ class SurfaceFinder:
         at this site. In the event that a molecule was not
         bound to the surface, its dict remains empty.
 
-        
         Arguments:
             ads_slab: `Atoms` object representing adsorbate(s) on surface slab.
             nl_cutoffs: List of ASE `NeighborList` cutoffs to use for identifying bonding to surface. Defaults to `ase.neighborlist.natural_cutoffs(ads_slab)`.
             allow_tag_guessing: Whether to allow surface/adsorbate layer tags to be guessed based on elemental composition if not present or otherwise malformed in input.
+            reject_wrong_coordination: Whether to reject (mark as not adsorbed) atoms with the wrong coordination for their predicted site, provided they are connected to another adsorbed atom.
         '''
         if self.verbose: 
             print('ASESurfaceFinder Prediction')
@@ -340,6 +362,7 @@ class SurfaceFinder:
         n_mol, molidx_to_moleculeidx = sparse.csgraph.connected_components(cm) # e.g. 2, array[0, 0, 0, 1, 1]
         if self.verbose: print(f'  {n_mol} molecule(s) found on/above surface.')
         molecules = [mol_atoms[np.argwhere(molidx_to_moleculeidx==i).flatten()] for i in range(n_mol)]
+        per_mol_cutoffs = [mol_cutoffs[np.argwhere(molidx_to_moleculeidx==i).flatten()] for i in range(n_mol)]
 
         # Predict surface sites.
         pos = ads_slab.get_positions()
@@ -372,5 +395,53 @@ class SurfaceFinder:
                 'coordination': int(bonded_molatom_coordinations[i]),
                 'height': height
             }
+
+        # Remove predicted adsorbed atoms if 
+        #   a) they are undercoordinated compared to their expected coordination,
+        #   b) they are connected to another adsorbed atom that is correctly coordinated.
+        # This should eliminate e.g. low-hanging hydrogen atoms that aren't actually adsorbed,
+        # and are just close to the surface because they are bonded to atoms actually in 
+        # a surface site.
+        if reject_wrong_coordination:
+            for i in range(n_mol):
+                if len(pred_labels_per_molecule[i]) < 2:
+                    continue
+
+                # Find atoms with incorrect coordination.
+                maybe_remove_idxs = []
+                bonded_atomidxs = pred_labels_per_molecule[i].keys()
+                for bonded_atomidx in bonded_atomidxs:
+                    surflabel_split = pred_labels_per_molecule[i][bonded_atomidx]['site'].split('_')
+                    surflabel = '_'.join(surflabel_split[:-1])
+                    site = surflabel_split[-1]
+                    sf_surf_idx = self.labels.index(surflabel)
+                    expected_coord = self.site_coordinations[sf_surf_idx][site]
+                    if pred_labels_per_molecule[i][bonded_atomidx]['coordination'] != expected_coord:
+                        maybe_remove_idxs.append(bonded_atomidx)
+
+                if len(maybe_remove_idxs) == 0:
+                    continue
+
+                # Check for adsorbed neighbours of undercoordinated atoms.
+                ana = Analysis(molecules[i], cutoffs=per_mol_cutoffs[i], self_interaction=False, bothways=True)
+                nl = ana.nl[0]
+                remove_idxs = []
+                for remidx in maybe_remove_idxs:
+                    neighbors = nl.get_neighbors(remidx)[0]
+                    for neighbor in neighbors:
+                        if neighbor in bonded_atomidxs and neighbor in maybe_remove_idxs:
+                            if self.verbose: 
+                                print(f'Undercoordinated adsorbed atom {remidx} detected in molecule {i+1}/{n_mol}')
+                                print('Not untagging since it shares an undercoodinated neighbour.')
+                        elif neighbor in bonded_atomidxs:
+                            if self.verbose:
+                                print(f'Untagging undercoordinated adsorbed atom {remidx} in molecule {i+1}/{n_mol}')
+                            remove_idxs.append(remidx)
+                        else:
+                            print(f'Warning: adsorbed atom {remidx} in molecule {i+1}/{n_mol} is undercoordinated.')
+
+                for remidx in remove_idxs:
+                    pred_labels_per_molecule[i].pop(remidx)
+
 
         return slab, molecules, pred_labels_per_molecule

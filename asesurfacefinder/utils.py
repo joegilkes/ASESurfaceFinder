@@ -1,5 +1,9 @@
+from asesurfacefinder.sample_bounds import SampleBounds
+
 from dscribe.descriptors import LMBTR, SOAP
 import numpy as np
+from ase.build import add_adsorbate
+from ase.geometry.analysis import Analysis
 
 from ase import Atoms
 from numpy.typing import ArrayLike
@@ -152,3 +156,17 @@ def _get_surface_idxs(slab: Atoms, base_surface: Atoms, tol: float=5e-2):
             slab_surf_idxs.append(reduced_to_full_idxmap[i])
 
     return slab_surf_idxs
+
+
+def get_site_coordination(surface: Atoms, site: str, bounds: SampleBounds):
+    '''Determines expected coordination of adsorbate atoms on a surface site.
+
+    Places a hydrogen atom at a site's `bounds.z_min` and checks its 
+    connectivity to the surface to establish a site coordination number.
+    '''
+    slab = surface.copy()
+    add_adsorbate(slab, 'H', bounds.z_min, site)
+    ana = Analysis(slab, self_interaction=False, bothways=True)
+    nl = ana.nl[0]
+    coord = len(nl.get_neighbors(len(slab)-1)[0])
+    return coord
