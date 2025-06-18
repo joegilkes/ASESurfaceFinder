@@ -132,9 +132,11 @@ This acts as a wrapper around `ase.visualize.plot`'s `plot_atoms` function, samp
 
 ![Adsorption points sampled above high-symmetry sites on a gold FCC{111} surface](/examples/sampled_points.svg)
 
+Here we can see the difference between the types of sampling volume defined by `SampleBounds`: the red `ontop` site sits over a single atom and is defined by a hemispheroidal dome, while the other sites sit in between atoms and permit atoms to sit in cavities within the top of the surface, so they use an ovoid sampling volume that is widest at the most common absorption heights and tapers to a point above and below this.
+
 When defining `SampleBounds` for unknown surface sites, `SamplePlotter` can be used to fine-tune the sampling volume. To choose sensible initial values for a site think about where the smallest and largest atoms you will be adsorbing might lie - in a simple hydrocarbon, hydrogen would be able to approach sites more closely than carbon due to its smaller atomic radius. Choosing the correct sampling bounds will vary depending on the chemical system and how the input geometries for prediction are being created and optimised, so this exercise is left up to the reader.
 
-> ![IMPORTANT]
+> [!IMPORTANT]
 > Visualisation is an important step, as it allows you to ensure that sampling volumes are not overlapping! Overlapping volumes are likely to confuse the classifier during training, decreasing prediction accuracy. Watch out for overlap between symmetrically equivalent sites - `SamplePlotter` does not currently show these.
 
 ### Model Validation
@@ -142,16 +144,12 @@ When defining `SampleBounds` for unknown surface sites, `SamplePlotter` can be u
 The training can be validated before performing any predictions on real systems:
 
 ```python
-sf.validate(
-    samples_per_site=2000,
-    surf_mults=[(1,1,1), (3,3,1), (5,5,1)],
-    sample_bounds=[
-        {'bridge': SampleBounds(0.5, z_min=0.65, z_mid=1.4, z_max=2.2)},
-        {},
-        {'fcc': SampleBounds(0.3, z_min=0.5, z_mid=1.4, z_max=1.9),
-        'hcp': SampleBounds(0.3, z_min=0.5, z_mid=1.4, z_max=1.9)}
-    ]
-)
+sf.validate(samples_per_site=2000, surf_mults=[(1,1,1), (3,3,1), (5,5,1)], sample_bounds=[
+    {'bridge': SampleBounds(0.5, z_min=0.65, z_mid=1.4, z_max=2.2)},
+    {},
+    {'fcc': SampleBounds(0.3, z_min=0.5, z_mid=1.4, z_max=1.9),
+    'hcp': SampleBounds(0.3, z_min=0.5, z_mid=1.4, z_max=1.9)}
+])
 ```
 
 This performs the same adsorbate position sampling procedure as was used to generate local atomic environments in the training of the classifier, but different values of the sampling volume can be passed through the `sample_bounds` argument to test the limits of applicability of the current model. While a `dict` has to be provided for each surface (when using this argument), surface sites not given new validation bounds will default to using the bounds that were used in training. 
@@ -262,7 +260,7 @@ Atoms(symbols='NHCH3', pbc=False) {0: {'site': 'Au_fcc111_bridge', 'bonded_elem'
 
 #### Rejecting near-surface atoms
 
-In some cases, adsorbates can contain atoms which lie close enough to the surface to be picked up by ASE's connectivity detection, but should not be considered to be adsorbed. This usually occurs to hydrogen atoms that are directly bonded to adsorbed atoms. In such cases, it can be beneficial to classify these atoms as not adsorbed and instead rely on a single point of adsorption. Take this ethylamino anion on Pt FCC{100}:
+In some cases, adsorbates can contain atoms which lie close enough to the surface to be picked up by ASE's connectivity detection, but should not be considered to be adsorbed. This usually occurs to hydrogen atoms that are directly bonded to adsorbed atoms. In such cases, it can be beneficial to classify these atoms as not adsorbed and instead rely on a single point of adsorption. Take this ethylamino anion on Pt FCC{100}, where a hydrogen atom sits above a `bridge` site:
 
 ![Ethylamino anion on Pt FCC{100}, with low-lying hydrogen atom potentially interacting with the surface.](/examples/CH3CH2NH_Pt_fcc100_sideview.svg)
 
