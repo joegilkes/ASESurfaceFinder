@@ -283,7 +283,7 @@ class SurfaceFinder:
         return True if correct_acc == n_samples else False
 
 
-    def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True, reject_wrong_coordination=False):
+    def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True, reject_wrong_coordination=False, reject_bonded_hydrogens=False):
         '''Predicts adsorption site and surface facet of adsorbed systems.
 
         Systems may contain multiple adsorbates, as well as non-
@@ -309,6 +309,7 @@ class SurfaceFinder:
             nl_cutoffs: List of ASE `NeighborList` cutoffs to use for identifying bonding to surface. Defaults to `ase.neighborlist.natural_cutoffs(ads_slab)`.
             allow_tag_guessing: Whether to allow surface/adsorbate layer tags to be guessed based on elemental composition if not present or otherwise malformed in input.
             reject_wrong_coordination: Whether to reject (mark as not adsorbed) atoms with the wrong coordination for their predicted site, provided they are connected to another adsorbed atom.
+            reject_bonded_hydrogens: Whether to reject (mark as not adsorbed) hydrogen atoms that are directly bonded to an adsorbed atom.
         '''
         if self.verbose: 
             print('ASESurfaceFinder Prediction')
@@ -450,5 +451,41 @@ class SurfaceFinder:
                 for remidx in remove_idxs:
                     pred_labels_per_molecule[i].pop(remidx)
 
+        # Some hydrogens end up being close enough to adsorbed atoms to be
+        # detected as connected to the same surface site. These will not be
+        # removed by the above.
+        # This is therefore a bit of a nuclear option, rejecting all hydrogens
+        # directly bonded to other (non-hydrogen) adsorbed atoms.
+        if reject_bonded_hydrogens:
+            for i in range(n_mol):
+                if len(pred_labels_per_molecule[i]) < 2:
+                    continue
+
+                # Find any adsorbed hydrogens.
+                hydrogen_idxs = []
+                non_hydrogen_idxs = []
+                bonded_atomidxs = pred_labels_per_molecule[i].keys()
+                for bonded_atomidx in bonded_atomidxs:
+                    if pred_labels_per_molecule[i][bonded_atomidx]['bonded_elem'] == 'H':
+                        hydrogen_idxs.append(bonded_atomidx)
+                    else:
+                        non_hydrogen_idxs.append(bonded_atomidx)
+
+                if len(hydrogen_idxs) == 0:
+                    continue
+
+                # Reject if bonded to a non-hydrogen adsorbed atom.
+                ana = Analysis(molecules[i], cutoffs=per_mol_cutoffs[i], self_interaction=False, bothways=True)
+                nl = ana.nl[0]
+                remove_idxs = []
+                for hydrogen_idx in hydrogen_idxs:
+                    neighbors = nl.get_neighbors(hydrogen_idx)[0]
+                    if any(non_hydrogen_idx in neighbors for non_hydrogen_idx in non_hydrogen_idxs):
+                        if self.verbose:
+                            print(f'Untagging hydrogen {hydrogen_idx} bonded to adsorbed atom in molecule {i+1}/{n_mol}')
+                        remove_idxs.append(hydrogen_idx)
+
+                for remidx in remove_idxs:
+                    pred_labels_per_molecule[i].pop(remidx)
 
         return slab, molecules, pred_labels_per_molecule
