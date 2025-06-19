@@ -7,9 +7,13 @@ from ase.neighborlist import natural_cutoffs
 from scipy import sparse
 from importlib.metadata import version, PackageNotFoundError
 
-from asesurfacefinder.utils import *
+from asesurfacefinder.utils import (
+    descgen_mbtr, descgen_soap,
+    get_site_coordination, get_absolute_abspos, sample_ads_pos,
+    has_elems, guess_tags, check_tags
+)
 from asesurfacefinder.sample_bounds import SampleBounds
-from asesurfacefinder.exception import *
+from asesurfacefinder.exception import NoSurfaceError, SurfaceTagError, NonPeriodicError
 
 from ase import Atoms
 from collections.abc import Sequence
@@ -157,12 +161,12 @@ class SurfaceFinder:
 
                 for k, site in enumerate(sites):
                     site_abspos = get_absolute_abspos(surface, site)
-                    for l in range(samples_per_site):
+                    for m in range(samples_per_site):
                         slab = surface.copy()
                         bounds = self.sample_bounds[i][site]
                         xy, z = sample_ads_pos(site_abspos, bounds.z_bounds, bounds.r_max)
                         add_adsorbate(slab, 'H', z, xy)
-                        slab_positions[(k*samples_per_site)+l, :] = slab.get_positions()[-1]
+                        slab_positions[(k*samples_per_site)+m, :] = slab.get_positions()[-1]
                         labels.append(f'{label}_{site}')
 
                 end_idx = start_idx + (len(sites)*samples_per_site)

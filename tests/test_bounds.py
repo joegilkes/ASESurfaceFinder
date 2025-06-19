@@ -1,5 +1,3 @@
-import pytest
-
 from asesurfacefinder import SampleBounds
 
 def test_bounds_hemispheroid():

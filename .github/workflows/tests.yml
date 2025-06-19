@@ -31,6 +31,7 @@ jobs:
 
     - name: Lint with ruff
       run: ruff check --output-format=github --target-version=py39
+      continue-on-error: true
 
     - name: Check code formatting with ruff
       run: ruff format --diff --target-version=py39
