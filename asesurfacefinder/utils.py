@@ -66,6 +66,8 @@ def sample_ads_pos(xy_pos: ArrayLike, z_bounds: Union[tuple[float, float], tuple
         z_diff_upper = z_max - z_mid
         z_upper = max(z_mid + (np.sqrt(r_max**2 - r**2)/r_max)*z_diff_upper, z_mid)
         z = np.random.uniform(z_lower, z_upper)
+    else:
+        raise ValueError('Incorrect z_bounds specified, must be a tuple of length 2 or 3.')
 
     return new_xy_pos, z
 

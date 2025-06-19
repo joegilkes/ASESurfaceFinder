@@ -276,7 +276,7 @@ class SurfaceFinder:
 
             print(f'\n  {correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
 
-        return 
+        return True if correct_acc == n_samples else False
 
 
     def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True, reject_wrong_coordination=False):
@@ -312,6 +312,9 @@ class SurfaceFinder:
             
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
+        
+        if (not any(ads_slab.get_pbc())) or ads_slab.cell.sum() == 0.0:
+            raise NonPeriodicError('Slab-adsorbate system is missing PBCs and/or a unit cell.')
         
         # Check slab (maybe) actually has a known surface.
         if not has_elems(ads_slab, self.elements):
