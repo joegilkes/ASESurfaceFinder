@@ -7,9 +7,13 @@ from ase.neighborlist import natural_cutoffs
 from scipy import sparse
 from importlib.metadata import version, PackageNotFoundError
 
-from asesurfacefinder.utils import *
+from asesurfacefinder.utils import (
+    descgen_mbtr, descgen_soap,
+    get_site_coordination, get_absolute_abspos, sample_ads_pos,
+    has_elems, guess_tags, check_tags
+)
 from asesurfacefinder.sample_bounds import SampleBounds
-from asesurfacefinder.exception import *
+from asesurfacefinder.exception import NoSurfaceError, SurfaceTagError, NonPeriodicError
 
 from ase import Atoms
 from collections.abc import Sequence
@@ -157,12 +161,12 @@ class SurfaceFinder:
 
                 for k, site in enumerate(sites):
                     site_abspos = get_absolute_abspos(surface, site)
-                    for l in range(samples_per_site):
+                    for m in range(samples_per_site):
                         slab = surface.copy()
                         bounds = self.sample_bounds[i][site]
                         xy, z = sample_ads_pos(site_abspos, bounds.z_bounds, bounds.r_max)
                         add_adsorbate(slab, 'H', z, xy)
-                        slab_positions[(k*samples_per_site)+l, :] = slab.get_positions()[-1]
+                        slab_positions[(k*samples_per_site)+m, :] = slab.get_positions()[-1]
                         labels.append(f'{label}_{site}')
 
                 end_idx = start_idx + (len(sites)*samples_per_site)
@@ -276,7 +280,7 @@ class SurfaceFinder:
 
             print(f'\n  {correct_acc}/{n_samples} sites classified correctly (accuracy = {score}).')
 
-        return 
+        return True if correct_acc == n_samples else False
 
 
     def predict(self, ads_slab: Atoms, nl_cutoffs: list=None, allow_tag_guessing: bool=True, reject_wrong_coordination=False):
@@ -312,6 +316,9 @@ class SurfaceFinder:
             
         if not hasattr(self, 'clf'):
             raise AttributeError('No trained RandomForestClassifier found.')
+        
+        if (not any(ads_slab.get_pbc())) or ads_slab.cell.sum() == 0.0:
+            raise NonPeriodicError('Slab-adsorbate system is missing PBCs and/or a unit cell.')
         
         # Check slab (maybe) actually has a known surface.
         if not has_elems(ads_slab, self.elements):
