@@ -289,10 +289,10 @@ for molecule, label in zip(molecules, labels):
 Atoms(symbols='C2NH6', pbc=False, tags=...) {2: {'site': 'Pt_fcc100_ontop', 'bonded_elem': 'N', 'coordination': 1, 'height': 1.9993630699999994}}
 ```
 
-Sometimes ASESurfaceFinder will not find the correct coordination for some sites, as it calculates this by placing a hydrogen atom at the bottom of the site's sampling volume and checking its connectivity to the surface. In particularly wide hollows such as the `longbridge` site in FCC{110}, the small scale of the hydrogen atom can lead to predicted undercoordination. This can be identified by the printout at `SurfaceFinder` initialisation, and corrected by passing a value to `SurfaceFinder`'s `site_coordinations` keyword argument:
+Sometimes ASESurfaceFinder will not find the correct coordination for some sites, as it calculates this by placing a hydrogen atom at the bottom of the site's sampling volume and checking its connectivity to the surface. In particularly wide hollows such as the `hollow` site in FCC{110}, the small scale of the hydrogen atom can lead to predicted undercoordination. This can be identified by the printout at `SurfaceFinder` initialisation, and corrected by passing a value to `SurfaceFinder`'s `site_coordinations` keyword argument:
 
 ```python
-sf = SurfaceFinder([fcc110('Ag', (1,1,3))], labels=['Ag_fcc110'], site_coordinations=[{'longbridge': 4}])
+sf = SurfaceFinder([fcc110('Ag', (1,1,3))], labels=['Ag_fcc110'], site_coordinations=[{'hollow': 4}])
 ```
 
 ## A note on adsorbate identification
