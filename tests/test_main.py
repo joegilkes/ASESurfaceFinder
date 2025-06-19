@@ -3,6 +3,7 @@ import pytest
 from asesurfacefinder import SurfaceFinder, SampleBounds
 from asesurfacefinder.exception import NonPeriodicError, NoSurfaceError
 
+import numpy as np
 from ase.build import fcc100, fcc110, fcc111
 from ase.neighborlist import natural_cutoffs
 from ase.io import read
@@ -10,6 +11,8 @@ import multiprocessing
 
 
 def test_surfacefinder():
+    # This seed causes sampling that makes sys3 be predicted with the H on an ontop site.
+    np.random.seed(1)
     surfaces = [
         fcc100('Au', (1,1,3)),
         fcc110('Au', (1,1,3)),
@@ -44,7 +47,7 @@ def test_surfacefinder():
 
     sf = SurfaceFinder(surfaces, labels=surface_labels, sample_bounds=sample_bounds)
     sf.train(
-        samples_per_site=1000,
+        samples_per_site=4000,
         n_jobs=multiprocessing.cpu_count()
     )
     valid = sf.validate(
@@ -73,9 +76,10 @@ def test_surfacefinder():
     assert [l[0]['coordination'] for l in labels] == [1, 3, 2]
     assert [l[0]['bonded_elem'] for l in labels] == ['C', 'O', 'N']
 
+    # Seeded this way, low-lying H is detected on an ontop site and requires reject_bonded_hydrogens to be removed.
     sys3 = read('examples/CH3CH2NH_Pt_fcc100.xyz')
     sys3.center(10.0, axis=2)
-    slab, molecules, labels = sf.predict(sys3, nl_cutoffs=natural_cutoffs(sys3, mult=1.15), reject_wrong_coordination=True)
+    slab, molecules, labels = sf.predict(sys3, nl_cutoffs=natural_cutoffs(sys3, mult=1.15), reject_bonded_hydrogens=True)
     assert len(slab) == 27
     assert len(molecules) == 1 and len(labels) == 1
     assert len(labels[0]) == 1
@@ -91,3 +95,26 @@ def test_surfacefinder():
     sys4.set_pbc([True, True, False])
     with pytest.raises(NoSurfaceError):
         _, _, _ = sf.predict(sys4)
+
+    # Reseed with a seed that makes sys3 H be predicted in a bridge site.
+    np.random.seed(12345)
+    sf = SurfaceFinder(surfaces, labels=surface_labels, sample_bounds=sample_bounds)
+    sf.train(
+        samples_per_site=4000,
+        n_jobs=multiprocessing.cpu_count()
+    )
+    valid = sf.validate(
+        samples_per_site=200,
+        surf_mults=[(1,1,1), (3,3,1), (5,5,1)]
+    )
+    assert valid
+
+    # After retraining, H is predicted as a bridge site and requires reject_wrong_coordination to be removed.
+    slab, molecules, labels = sf.predict(sys3, nl_cutoffs=natural_cutoffs(sys3, mult=1.15), reject_wrong_coordination=True)
+    assert len(slab) == 27
+    assert len(molecules) == 1 and len(labels) == 1
+    assert len(labels[0]) == 1
+    assert [k for k in labels[0].keys()][0] == 2
+    assert labels[0][2]['site'] == 'Pt_fcc100_ontop'
+    assert labels[0][2]['coordination'] == 1
+    assert labels[0][2]['bonded_elem'] == 'N' 

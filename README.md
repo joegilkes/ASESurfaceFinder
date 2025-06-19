@@ -258,13 +258,13 @@ Atoms(symbols='OH', pbc=False) {0: {'site': 'Au_fcc111_fcc', 'bonded_elem': 'O',
 Atoms(symbols='NHCH3', pbc=False) {0: {'site': 'Au_fcc111_bridge', 'bonded_elem': 'N', 'coordination': 2, 'height': 1.9164665700000008}}
 ```
 
-#### Rejecting near-surface atoms
+#### Rejecting near-surface atoms by coordination
 
 In some cases, adsorbates can contain atoms which lie close enough to the surface to be picked up by ASE's connectivity detection, but should not be considered to be adsorbed. This usually occurs to hydrogen atoms that are directly bonded to adsorbed atoms. In such cases, it can be beneficial to classify these atoms as not adsorbed and instead rely on a single point of adsorption. Take this ethylamino anion on Pt FCC{100}, where a hydrogen atom sits above a `bridge` site:
 
 ![Ethylamino anion on Pt FCC{100}, with low-lying hydrogen atom potentially interacting with the surface.](/examples/CH3CH2NH_Pt_fcc100_sideview.svg)
 
-Identifying such atoms can be tricky, although when sent for site prediction they usually come back undercoordinated. This molecule returned the following labels:
+Identifying such atoms can be tricky, although when sent for site prediction they usually come back undercoordinated. Depending on how `SurfaceFinder is trained`, this molecule can return the following labels:
 
 ```python
 {
@@ -294,6 +294,19 @@ Sometimes ASESurfaceFinder will not find the correct coordination for some sites
 ```python
 sf = SurfaceFinder([fcc110('Ag', (1,1,3))], labels=['Ag_fcc110'], site_coordinations=[{'hollow': 4}])
 ```
+
+#### Rejecting near-surface hydrogens
+
+Depending on how `SurfaceFinder` is trained, the above hydrogen may instead be predicted to be adsorbed to the same `ontop` site that the nitrogen is on! Rejecting the hydrogen through undercoordination to its surface site will fail, since it is on a 1-coordinate site:
+
+```python
+{
+    2: {'bonded_elem': 'N', 'coordination': 1, 'height': 1.9993630699999994, 'site': 'Pt_fcc100_ontop'}, 
+    8: {'bonded_elem': 'H', 'coordination': 1, 'height': 2.0844453000000005, 'site': 'Pt_fcc100_ontop'}
+}
+```
+
+Instead, we can take the more aggressive option of rejecting all hydrogen atoms that are detected as adsorbed, provided they are directly bonded to a non-hydrogen adsorbed atom. This behaviour can be enabled with the `reject_bonded_hydrogens` argument of `SurfaceFinder.predict()` (defaults to `False`). The distinction of rejected hydrogens being bonded to *non-hydrogen* atoms is important, as otherwise hydrogen molecules on the surface could be rejected entirely if they are in a horizontal conformation.
 
 ## A note on adsorbate identification
 
